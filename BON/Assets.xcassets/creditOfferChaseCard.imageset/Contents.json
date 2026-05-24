@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "creditOfferChaseCard.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

@@ -2,6 +2,41 @@
 
 Review this file at the start of every non-trivial BON implementation turn. After any correction, append a new entry using this exact shape: correction, root cause, prevention rule, verification rule.
 
+## 2026-05-24 - Verify Credit Flow Modals Against Figma Top Edge
+
+- Correction: The Credit offer details and account picker states needed app-owned modal overlays instead of native SwiftUI sheets.
+- Root cause: Native iOS sheet detents forced the rendered sheet top much lower than the Figma modal frames, even with explicit height detents.
+- Prevention rule: For BON pixel-critical modal states, first decide whether the Figma state is a system sheet or a custom overlay; if it is a custom Figma canvas/sheet, implement the overlay geometry directly instead of relying on `.sheet`.
+- Verification rule: Capture the modal state in simulator and compare the top edge, rounded corner, first artwork/title baseline, and scrim color against the Figma export before accepting it.
+
+## 2026-05-24 - Do Not Center Fixed Figma Columns On Pro Screens
+
+- Correction: The Credit main screen column needed real iPhone Pro `24pt` side margins, not a centered fixed `342pt` Figma column.
+- Root cause: The implementation treated the `390pt` Figma width as a centered canvas inside the wider Pro simulator, which narrowed and shifted the content compared with the app's responsive margin rule.
+- Prevention rule: For production BON screens on Pro devices, compute content columns from screen width and target margins, then preserve Figma internals within that column.
+- Verification rule: Capture an iPhone Pro screenshot and confirm major cards start at `x=24pt` in simulator points before comparing deeper typography or asset details.
+
+## 2026-05-24 - Recreate Figma Image Crop, Not Source Image Fit
+
+- Correction: The Credit auto-loan hero image needed fill/clipping plus crop scale instead of `scaledToFit`.
+- Root cause: The exported source image contains internal white space, so fitting the whole bitmap made the vehicle smaller than the Figma image node.
+- Prevention rule: For Figma image nodes, inspect whether the frame uses crop/fill behavior; implement the Figma frame crop even when the raw bitmap has extra whitespace.
+- Verification rule: Compare the visible object bounds, not just the image view frame, in the simulator screenshot against the Figma export.
+
+## 2026-05-24 - Use Explicit Transition Layers For Pixel-Critical Morphs
+
+- Correction: The Home AI report transition needed a dedicated morph overlay from the visible Home report block into `61:1398`, not just removal of competing `.transition` effects.
+- Root cause: SwiftUI state swaps can still read as a fade or move even when matched geometry exists, especially when the source and destination content are not both visible through the whole intermediate path.
+- Prevention rule: For pixel-critical BON smart-animate flows, make the intermediate frames a first-class implementation unit with an explicit overlay, measured source rect, destination rect, content reveal, background wash, and disabled-animation state swap at completion.
+- Verification rule: Capture intermediate frames or video before claiming the morph is fixed; reject any pass where the target screen fades over unrelated Home chrome instead of visually owning the transition.
+
+## 2026-05-24 - Let Matched Geometry Own AI Report Surface Motion
+
+- Correction: The Home AI report transition must not use a separate insertion/removal move or scale when the intended behavior is a smooth morph from the Home AI preview into `61:1398`.
+- Root cause: After fixing the destination, the view still had asymmetric opacity/scale transitions around the matched surface, so SwiftUI composed a screen-like swap over the intended morph.
+- Prevention rule: For BON smart-animate surfaces, remove competing `.transition` effects and ensure both source and destination include the same real surface in the matched geometry path.
+- Verification rule: Record the real tap path and inspect intermediate frames; reject any pass where the surface enters or exits independently instead of growing or compressing from the visible source.
+
 ## 2026-05-06 - Design system before screens
 
 - Correction: Do not start implementing product screens from a single Figma frame before building the BON design-system foundation.
@@ -238,6 +273,69 @@ Review this file at the start of every non-trivial BON implementation turn. Afte
 - Correction: Make the CTA and nav collapse progress respond directly to scroll offset instead of smoothstepping the value and then smoothstepping it again inside position helpers.
 - Root cause: Double easing produced a dead zone where `Talk with AI` appeared fixed for the first part of the drag.
 - Prevention rule: Use direct clamped scroll progress for positional continuity; reserve easing for opacity/scale details only.
+
+## 2026-05-23 - Keep Matched Geometry Sources Visible
+
+- Correction: Do not keep a matched-geometry source alive while making the entire source tree fully transparent during the transition.
+- Root cause: The budgeting card source existed in SwiftUI state, but opacity was set to `0` as soon as the destination appeared, so the open animation had geometry without a visible source and looked like a jump.
+- Prevention rule: During a card-to-screen morph, keep the source view visually present until the destination surface has covered it, then remove the source with animations disabled after the morph window.
+- Verification rule: Record and inspect frame strips around the actual tap, not just the settled screenshot; a staff-level check must show at least one coherent intermediate frame.
+
+## 2026-05-23 - Let Matched Geometry Own The Surface Transition
+
+- Correction: Do not wrap a matched-geometry screen surface in a separate opacity insertion/removal transition when the design calls for reverse compression.
+- Root cause: The budgeting close path faded the full-screen surface before the matched geometry could visibly compress back into the Home card.
+- Prevention rule: Use `.identity` for the container transition around matched surfaces unless a fade is intentionally part of the design; animate the internal content separately.
+- Verification rule: Capture both open and close frame strips after transition-wrapper changes and confirm the surface path is visible in both directions.
+
+## 2026-05-23 - Normalize SVG Asset Colors Before Simulator QA
+
+- Correction: Figma SVGs with CSS variable fills or strokes must be normalized before relying on them in Xcode asset catalogs.
+- Root cause: Some exported budgeting icons used `var(--fill-0, black)` and `var(--stroke-0, black)`, which compiled but rendered blank in simulator.
+- Prevention rule: For BON SVG assets, replace CSS-variable paint declarations with literal colors or use verified PDF/PNG exports before installing into `Assets.xcassets`.
+- Verification rule: Capture a simulator screenshot after adding each icon family and inspect that every asset renders at the expected size and color.
+
+## 2026-05-21 - Reuse Approved Chat Primitives
+
+- Correction: The first-timer AI landing screen should reuse the already-approved AI Chat glow, top icon, dark pill, and composer primitives instead of rebuilding similar local glass surfaces.
+- Root cause: The updated first-timer implementation created nearby-but-different surfaces, so the screen regressed from the earlier approved chat visual language.
+- Prevention rule: Before rebuilding a BON surface that already exists elsewhere, search for the approved component and expose a narrow reusable API if needed.
+- Verification rule: Capture the corrected simulator screen and confirm the reused primitive is visually present in the exact state being handed back.
+
+## 2026-05-21 - Respect Figma Chat Column Width
+
+- Correction: The first-timer AI report content should use the Figma chat column width instead of the wider Home dashboard content width.
+- Root cause: The shared first-timer metrics applied the Home screen's responsive `24pt` margin rule to a chat/report frame whose Figma anatomy is a capped centered column.
+- Prevention rule: Keep Home dashboard widths and AI chat/report widths as separate layout roles, even when they live in the same SwiftUI screen file.
+- Verification rule: Compare first-screen cards and composer against the `61:1398` reference after any metric change, not only against device-edge margins.
+
+## 2026-05-21 - Fixed Chat Chrome Needs A Scrim
+
+- Correction: A long chat/report screen with fixed top chrome needs the approved top scrim so scrolled content fades behind the header instead of visibly colliding with it.
+- Root cause: The first-timer report reused fixed chat chrome but did not reuse the AI Chat top scrim that makes the fixed header composition work.
+- Prevention rule: When reusing fixed chat chrome, also reuse the companion scrim and verify both the resting and scrolled states.
+
+## 2026-05-23 - Do Not Let System Glass Override Dark Nav Anatomy
+
+- Correction: Remove the iOS 26 `glassEffect` layer from the bottom nav when it turns the Figma dark capsule into a grey translucent pill or hides the foreground controls.
+- Root cause: The system glass renderer composited above or through the custom dark capsule differently than Figma's measured `rgba(0,0,0,0.88)` surface, so it broke color parity and icon readability.
+- Prevention rule: For the BON bottom nav, implement the Figma fill, exact icon geometry, typography, outer shadow, and soft inner shadow as the primary visual layers; add platform glass only if a simulator crop proves it does not change measured luminance or foreground contrast.
+- Verification rule: Capture both expanded and compact nav crops and measure the rendered pill size before approval; compact must reach `200 x 44`, and the expanded surface must keep readable vector icons and labels without a grey wash.
+- Verification rule: Capture a scrolled PixelQA state that includes the top chrome and lower content before approving any long chat screen.
+
+## 2026-05-21 - Measure Card Internals Before Handoff
+
+- Correction: The first-timer report cards needed measured internal alignment for artwork, labels, row typography, colors, and issuer marks before being handed back.
+- Root cause: The previous pass verified shell reuse and overall layout but did not compare card internals against the Figma reference, leaving obvious mismatches.
+- Prevention rule: For any Figma card with nested data graphics, run a side-by-side crop and inspect the component internals before saying the screen is ready.
+- Verification rule: Record at least one card-region comparison artifact and one concrete geometry/color measurement for the corrected card group.
+
+## 2026-05-21 - Trim Transparent Artwork Before Scaling
+
+- Correction: The credit-score PNG had to be cropped to its active alpha bounds before SwiftUI layout, otherwise transparent canvas changed the apparent scale and placement.
+- Root cause: SwiftUI scaled the full exported bitmap, including transparent bottom/side padding, so the gauge rendered out of place inside the card.
+- Prevention rule: Inspect alpha bounds for every supplied PNG artwork before installing it into `Assets.xcassets`.
+- Verification rule: Measure the visible artwork bbox in simulator against the Figma reference after asset trimming.
 - Verification rule: In a shallow handoff screenshot, verify the CTA has already moved from its home resting position.
 
 ## 2026-05-07 - Story Snap Threshold Must Be Flick-Friendly
@@ -259,6 +357,41 @@ Review this file at the start of every non-trivial BON implementation turn. Afte
 - Root cause: The AI Chat routing pass called `DesignAuditPlaceholderView()` even though that screen requires `AppEnvironment`.
 - Prevention rule: When adding app-level routes, inspect every destination initializer and pass existing environment/dependency values through the route switch.
 - Verification rule: Re-run `xcodebuild` after route additions and confirm all destination cases compile.
+
+## 2026-05-21 - Do Not Trust Zero Safe-Area Insets From Ignored Roots
+
+- Correction: Move first-timer top controls below the iPhone Pro island instead of letting them overlap system chrome.
+- Root cause: The root screen ignored all safe areas, which made `GeometryProxy.safeAreaInsets` report zero in simulator QA.
+- Prevention rule: For full-bleed BON screens that still position custom top chrome, compute an effective minimum safe top/bottom inset for the target device family.
+- Verification rule: Capture simulator screenshots and confirm top pills/buttons do not overlap the dynamic island, status icons, or home indicator.
+
+## 2026-05-21 - Scrollable Chat Composer Must Match The Designed Content Model
+
+- Correction: Move the first-timer AI chat composer into the long scroll content instead of pinning it over the credit-card list.
+- Root cause: The Figma frame `61:1398` is a tall scrollable chat transcript, but the first implementation treated the composer as fixed viewport chrome.
+- Prevention rule: Before pinning chat/input chrome, classify whether the Figma frame represents a viewport state or a long transcript/content capture.
+- Verification rule: Capture the initial viewport and confirm input chrome does not cover cards, rows, CTAs, or transcript content.
+
+## 2026-05-21 - Launch QA States Need Exact Argument Mapping
+
+- Correction: Map `-BONHomeFirstTimerState home-scrolled` to the home surface before applying its initial scroll offset.
+- Root cause: The launch-argument parser only recognized `home`, `dashboard`, `budgeting`, and `ai`, so the scrolled-home screenshot fell back to the AI landing screen.
+- Prevention rule: Every PixelQA launch argument used in verification must be explicitly parsed and tested before relying on its screenshot.
+- Verification rule: Re-capture the requested QA state and visually confirm it is the intended screen/state, not the default route.
+
+## 2026-05-22 - Normalize Current Figma Evidence For Spacing
+
+- Correction: The first-timer report stack spacing needed a separate stack-start correction and inter-card gap correction instead of one broad vertical nudge.
+- Root cause: Comparing scaled Simulator-window captures to Figma screenshots hid that the intro/cards stack and the `Open credit cards` panel gap were drifting by different amounts.
+- Prevention rule: For spacing corrections, normalize the saved Figma export and the user's current Figma screenshot to simulator logical points, then measure named anchors before editing constants.
+- Verification rule: Save both a saved-export comparison and a current-user-Figma comparison after the patch, and confirm intro, card top, panel title, divider, and first rows align on the same grid.
+
+## 2026-05-22 - Encode Explicit Card Metrics, Not Approximate Nudges
+
+- Correction: The first-timer report card headings, gaps, bottom anchors, visible row count, and `view all` CTA needed exact component-level measurements from the user.
+- Root cause: The previous correction moved screen-level spacing and compared broad screenshots, but did not encode the actual card anatomy constraints.
+- Prevention rule: When the user provides exact Figma measurements, translate each number into a named component constraint before changing any broader stack offset.
+- Verification rule: Build and capture the target state, then confirm every provided measurement is represented in code and recorded in `tasks/todo.md` before handing back.
 
 ## 2026-05-07 - Prove Native Keyboard Visibility In QA
 
@@ -442,3 +575,80 @@ Review this file at the start of every non-trivial BON implementation turn. Afte
 - Root cause: The edit matched a generic `GeometryReader` pattern instead of anchoring to the heatmap component context.
 - Prevention rule: When changing common SwiftUI closure names, patch with nearby struct/function context and inspect all remaining matches before building.
 - Verification rule: Run `rg \"GeometryReader \\\\{ _ in|GeometryReader \\\\{ proxy in\"` and `xcodebuild` after common-layout mechanical edits.
+
+## 2026-05-22 - Verify Typography And Shadows From Live Figma Context
+
+- Correction: The first-timer report cards still had subtle non-Figma details after visual spacing looked close: `614` tracking was too loose, card fills had an extra gradient, open-card shadows were heavier than the node, `view all` had a stronger custom shadow, and prompt bubbles had a rounded bottom-right corner.
+- Root cause: Earlier verification focused on geometry and screenshots, but did not map every text style and visual effect directly from the live Figma `get_design_context` output.
+- Prevention rule: For pixel-critical BON screens, after fetching Figma MCP context, create a per-component checklist for typography, tracking, fill, shadow, border, radius, row count, and user-approved overrides before calling the screen verified.
+- Verification rule: Rebuild, capture fresh iPhone 17 Pro screenshots, generate side-by-side Figma comparisons, and record any remaining differences as either a measured defect or an explicit user override.
+
+## 2026-05-22 - Smart Close Needs Matched Target Geometry
+
+- Correction: The first-timer report-to-home action should not use a generic push transition when Figma describes a smart-animate close into the Home report preview.
+- Root cause: The Home surface was treated as a separate destination instead of the target geometry for the report canvas.
+- Prevention rule: For BON smart-animate transitions, identify the source node, target node, anchor, size, clipping radius, and timing before choosing SwiftUI transitions.
+- Verification rule: Verify both the final destination screenshot and a real tap path from the source control; save a transition video or equivalent motion artifact before marking the motion done.
+
+## 2026-05-22 - Export Mini Artwork Instead Of Redrawing It
+
+- Correction: The Home `Do free budgeting` card heatmap should use the exact Figma-exported artwork rather than a hand-drawn mini heatmap.
+- Root cause: The drawn approximation initially clipped the visible side of the artwork and then still differed in color distribution from Figma.
+- Prevention rule: When Figma provides a dense decorative mini graphic inside a card, export it as a production asset unless it needs live data or interaction.
+- Verification rule: Capture a focused side-by-side crop of the component after installing the asset and confirm color, visible crop, and clipping match the Figma reference.
+
+## 2026-05-22 - Reuse Approved Motion Vocabulary
+
+- Correction: The report-to-home close animation should use the approved chat/AI-mode spring morph style, not a new linear full-report-to-preview morph.
+- Root cause: The previous pass optimized for literal Figma smart-animate geometry instead of the user-approved in-app motion vocabulary.
+- Prevention rule: When the user references an already-approved animation, reuse that motion primitive and composition first; only add new geometry morphs if the approved primitive cannot express the transition.
+- Verification rule: Build, record the real tap path, and compare the feel against the named approved interaction before handing the motion back.
+
+## 2026-05-23 - Scope AI Glow To AI Surfaces
+
+- Correction: Do not render the full-screen AI/Siri edge glow behind regular Home content.
+- Root cause: `FirstTimerBackground` reused the AI chat glow unconditionally, so the Home surface inherited a visual effect that should only distinguish AI/report contexts.
+- Prevention rule: Treat glow as a surface role, not a global app background; every use must declare whether it is full AI, localized AI preview, or no glow.
+- Verification rule: Capture both Home and AI/report states after background changes and confirm Home has no edge glow while AI/report still does.
+
+## 2026-05-23 - Use One Moving CTA For Home Top Morph
+
+- Correction: The Home scroll transition must not show a top `Talk with AI` pill and a preview `Talk with AI` pill at the same time.
+- Root cause: The first fix crossfaded top chrome while leaving the preview CTA in place, creating a duplicated mid-transition control instead of a single smart-animate element.
+- Prevention rule: For scroll-driven CTA morphs, keep one persistent overlay control and interpolate its position from source to target; fade surrounding controls independently.
+- Verification rule: Capture a mid-transition screenshot and reject the pass if duplicate CTA instances are visible.
+
+## 2026-05-23 - Avoid Blank Morph Destinations
+
+- Correction: The Home budgeting card open interaction must not show a blank white destination before the full budgeting content resolves.
+- Root cause: A cross-tree matched handoff and delayed destination animation let the white full-screen surface lead the interaction, so the actual title, heatmap, rows, and CTA appeared after the user had already seen a blank intermediate state.
+- Prevention rule: For card-to-screen morphs, put the source card content and destination content inside one explicit progress-driven overlay, clip both to the expanding surface, block repeated taps during the handoff, and commit to the final screen only after the overlay is visually complete.
+- Verification rule: Record the actual tap path and inspect intermediate frames; reject any morph where the first visible post-tap frames are an empty surface or where content appears outside the expanding source shape.
+
+## 2026-05-23 - CTA Light Sweep Timing Is A Perceptual Token
+
+- Correction: The budgeting `Build your plan` CTA light sweep should feel slightly quicker than the first pass.
+- Root cause: A technically subtle `7.2s` caustic cycle read a bit too slow once viewed in the real budgeting composition.
+- Prevention rule: Keep CTA attention motion as a named/perceptual timing decision and tune only the cycle duration first before changing intensity, size, or glow layers.
+- Verification rule: Build and record a fresh simulator motion clip after timing changes; inspect frame strips to confirm the motion is faster without becoming a loading shimmer.
+
+## 2026-05-23 - Share AI Chat Transition Sources Across Entrypoints
+
+- Correction: `Talk with AI` and chat Home return must use the same matched Navigation zoom source model as the approved top `AI mode` path.
+- Root cause: The new Home flow split the interactions: `Talk with AI` used a local surface switch while `AI mode` used a Navigation transition, so entry and return no longer shared the same morph vocabulary.
+- Prevention rule: For AI chat entry points, model each visible source as an `AIChatEntrySource` and attach `matchedTransitionSource` directly to the tapped control; do not create parallel local route paths for the same destination.
+- Verification rule: Record real tap paths for every AI entry source and the Home pop path after transition changes; reject the pass if one source has a different motion family from the others.
+
+## 2026-05-23 - Mount The Approved Transition Source Before Navigation
+
+- Correction: `Talk with AI` must set the approved `AI mode` transition source and let SwiftUI mount that source before appending the AI chat route.
+- Root cause: Updating `aiEntrySource` and appending `.aiChat` in the same update cycle can let Navigation start from stale transition-source state, making the change look identical to the previous behavior.
+- Prevention rule: When a Navigation zoom source is chosen dynamically, update the source first and defer the route append by one main-runloop tick unless the source is always mounted.
+- Verification rule: Build, install, and record a real tap path after dynamic source changes; inspect intermediate frames for the selected source geometry instead of relying on code-level source IDs.
+
+## 2026-05-23 - Verify Destination Before Polishing Transition
+
+- Correction: Home `Talk with AI` and `AI mode` should open the first-timer AI report screen `61:1398`, not the older generic `AIChatView`.
+- Root cause: The previous pass focused on transition source parity and treated all AI entry points as the same destination, ignoring that the updated first-timer flow has a local AI report surface inside the Home state machine.
+- Prevention rule: For every BON tap-path correction, identify both source and destination Figma nodes before changing motion; do not polish a transition to the wrong screen.
+- Verification rule: After routing changes, launch the source screen, perform the real tap, and capture the destination screenshot proving the expected Figma node/state is on screen.

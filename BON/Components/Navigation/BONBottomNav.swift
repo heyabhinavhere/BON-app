@@ -47,7 +47,7 @@ struct BONBottomNav: View {
                     }
                 }
             }
-            .padding(.horizontal, interpolated(expanded: 36, compact: 18, progress: progress))
+            .padding(.horizontal, interpolated(expanded: 36, compact: 20, progress: progress))
             .padding(.vertical, interpolated(expanded: 6, compact: 12, progress: progress))
             .frame(width: navWidth, height: navHeight)
         }
@@ -73,7 +73,7 @@ struct BONBottomNav: View {
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
-                    .frame(width: 16, height: 16)
+                    .frame(width: 20, height: 20)
                     .foregroundStyle(foreground)
 
                 if labelProgress > 0.02 {
@@ -147,16 +147,13 @@ private struct BONBottomNavGlassContainer<Content: View>: View {
     private var liquidNavContent: some View {
         let capsule = Capsule(style: .continuous)
 
-        return content
-            .background {
-                ZStack {
-                    BONBottomNavDarkStain()
-                    BONBottomNavSpecularOverlay()
-                    BONBottomNavInnerShadow()
-                }
-            }
+        return ZStack {
+            BONBottomNavSurface()
+            BONBottomNavSpecularOverlay()
+            BONBottomNavInnerShadow()
+            content
+        }
             .clipShape(capsule)
-            .glassEffect(.regular.tint(Color.black.opacity(0.78)).interactive(), in: capsule)
             .compositingGroup()
             .shadow(color: Color.black.opacity(0.16), radius: 12, x: 0, y: 12)
     }
@@ -183,33 +180,20 @@ private struct BONBottomNavGlassContainer<Content: View>: View {
                     .fill(.ultraThinMaterial)
 
                 capsule
-                    .fill(Color.black.opacity(0.64))
+                    .fill(Color.black.opacity(0.88))
             }
 
-            if !reduceTransparency {
-                BONBottomNavDarkStain()
-            }
-
+            BONBottomNavSpecularOverlay()
             BONBottomNavInnerShadow()
         }
         .clipShape(capsule)
     }
 }
 
-private struct BONBottomNavDarkStain: View {
+private struct BONBottomNavSurface: View {
     var body: some View {
         Capsule(style: .continuous)
-            .fill(
-                LinearGradient(
-                    stops: [
-                        .init(color: Color.black.opacity(0.78), location: 0.0),
-                        .init(color: Color.black.opacity(0.64), location: 0.50),
-                        .init(color: Color.black.opacity(0.52), location: 1.0)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
+            .fill(Color.black.opacity(0.88))
             .allowsHitTesting(false)
     }
 }
@@ -219,10 +203,11 @@ private struct BONBottomNavSpecularOverlay: View {
         Capsule(style: .continuous)
             .fill(
                 LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.07),
-                        Color.clear,
-                        Color.black.opacity(0.12)
+                    stops: [
+                        .init(color: Color.white.opacity(0.08), location: 0.00),
+                        .init(color: Color.white.opacity(0.02), location: 0.22),
+                        .init(color: Color.clear, location: 0.52),
+                        .init(color: Color.black.opacity(0.08), location: 1.00)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -239,45 +224,25 @@ private struct BONBottomNavInnerShadow: View {
     var body: some View {
         let capsule = Capsule(style: .continuous)
 
-        ZStack {
-            capsule
-                .strokeBorder(shadow.color, lineWidth: 2.5)
-                .blur(radius: 2.5)
-                .offset(x: shadow.x, y: 1)
-                .mask {
-                    capsule
-                        .fill(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .white, location: 0.00),
-                                    .init(color: .white, location: 0.12),
-                                    .init(color: .clear, location: 0.24)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
+        capsule
+            .stroke(shadow.color, lineWidth: 8)
+            .blur(radius: shadow.radius)
+            .offset(x: shadow.x, y: shadow.y)
+            .mask {
+                capsule
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .white, location: 0.00),
+                                .init(color: .white.opacity(0.86), location: 0.20),
+                                .init(color: .clear, location: 0.48)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
                         )
-                }
-
-            capsule
-                .strokeBorder(shadow.color.opacity(0.55), lineWidth: 5)
-                .blur(radius: shadow.radius)
-                .offset(x: shadow.x, y: shadow.y)
-                .mask {
-                    capsule
-                        .fill(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .white, location: 0.00),
-                                    .init(color: .white.opacity(0.70), location: 0.18),
-                                    .init(color: .clear, location: 0.38)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                }
-        }
+                    )
+            }
+            .blendMode(.screen)
         .allowsHitTesting(false)
     }
 }

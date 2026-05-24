@@ -12,6 +12,9 @@ struct RootView: View {
                 activeAIEntrySource: router.aiEntrySource,
                 onOpenAI: { source in
                     router.openAIChat(source: source)
+                },
+                onOpenCredit: {
+                    router.openCredit()
                 }
             )
             .navigationDestination(for: AppRoute.self) { route in
@@ -25,6 +28,15 @@ struct RootView: View {
                         usesLaunchArguments: router.usesAIChatLaunchArguments
                     )
                         .navigationTransition(.zoom(sourceID: router.aiEntrySource.transitionID, in: aiEntryNamespace))
+                case .credit:
+                    CreditView(
+                        onHome: {
+                            router.reset()
+                        },
+                        onOpenAI: {
+                            router.openAIChat(source: .cta)
+                        }
+                    )
                 }
             }
             .toolbar(.hidden, for: .navigationBar)

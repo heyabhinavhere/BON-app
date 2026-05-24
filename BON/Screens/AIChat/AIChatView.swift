@@ -264,7 +264,7 @@ struct AIChatView: View {
     }
 }
 
-private struct AIChatTopScrim: View {
+struct AIChatTopScrim: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
@@ -515,7 +515,7 @@ private struct BONChatTopBar: View {
     }
 }
 
-private struct BONChatTopIconControl: View {
+struct BONChatTopIconControl: View {
     private let systemName: String?
     private let imageAsset: String?
     private let iconSize: CGFloat
@@ -606,7 +606,7 @@ private struct BONChatTopIconSurface: View {
     }
 }
 
-private struct BONChatExpertPillSurface: View {
+struct BONChatExpertPillSurface: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
@@ -1051,7 +1051,7 @@ private enum BONChatComposerIconMode: Hashable {
     case stop
 }
 
-private struct BONChatComposerActionSurface: View {
+struct BONChatComposerActionSurface: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
@@ -1153,7 +1153,7 @@ private struct BONChatComposerActionSurface: View {
     }
 }
 
-private struct BONChatGlassCapsule: View {
+struct BONChatGlassCapsule: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
@@ -1257,7 +1257,7 @@ private struct BONChatGlassCapsule: View {
     }
 }
 
-private struct BONSiriEdgeGlow: View {
+struct BONSiriEdgeGlow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var phase: Double = 0
 

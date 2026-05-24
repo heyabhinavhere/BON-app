@@ -8,10 +8,16 @@ final class AppRouter: ObservableObject {
     init() {
         let arguments = ProcessInfo.processInfo.arguments
         if let index = arguments.firstIndex(of: "-BONInitialRoute"),
-           arguments.indices.contains(index + 1),
-           arguments[index + 1].lowercased() == "ai-chat" {
-            path = [.aiChat]
-            usesAIChatLaunchArguments = true
+           arguments.indices.contains(index + 1) {
+            switch arguments[index + 1].lowercased() {
+            case "ai-chat":
+                path = [.aiChat]
+                usesAIChatLaunchArguments = true
+            case "credit":
+                path = [.credit]
+            default:
+                path = []
+            }
         } else {
             path = []
         }
@@ -20,7 +26,16 @@ final class AppRouter: ObservableObject {
     func openAIChat(source: AIChatEntrySource) {
         aiEntrySource = source
         usesAIChatLaunchArguments = false
-        path.append(.aiChat)
+        DispatchQueue.main.async { [weak self] in
+            self?.path.append(.aiChat)
+        }
+    }
+
+    func openCredit() {
+        usesAIChatLaunchArguments = false
+        DispatchQueue.main.async { [weak self] in
+            self?.path.append(.credit)
+        }
     }
 
     func reset() {

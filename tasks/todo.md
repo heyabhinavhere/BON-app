@@ -1,5 +1,952 @@
 # BON Implementation Todo
 
+## 2026-05-24 - Credit Screen Flow From Figma 61:7158
+
+### Check-In Status
+
+- Status: in progress.
+- Scope: audit and implement the complete Credit screen flow from Figma node `61:7158` with pixel-focused SwiftUI layout, correct navigation, and simulator QA.
+- User feedback:
+  - Work on the credit screen next.
+  - Be very precise and pixel perfect.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: TBD after Figma audit. Prefer a dedicated Credit flow screen/component set and reuse existing BON nav/glass/tokens instead of adding more one-off logic to Home.
+
+### Plan
+
+- [x] Re-read relevant lessons and workflow.
+- [x] Record this task before implementation.
+- [x] Fetch Figma design context, screenshot, and variables for node `61:7158`.
+- [x] Identify every frame/state in the Credit flow and the intended entry point.
+- [x] Inspect current navigation/code boundaries for Credit.
+- [x] Add production image assets from Figma into `BON/Assets.xcassets`.
+- [x] Implement the first Credit flow pass with reusable components and launch args for PixelQA.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture Figma reference and simulator screenshots for key states.
+- [x] Record verification results and any corrections.
+
+### Verification Results
+
+- Figma section child frames identified:
+  - `61:7234` main `Credit`, baseline `390 x 4112`.
+  - `61:7159` `Credit card offer - view all details`, baseline `390 x 813` with sheet/shadow export `430 x 853`.
+  - `61:7675` and `61:7701` compact offer card modules, baseline `310 x 207`.
+  - `61:7727` `Credit card debt`, baseline `390 x 2385`.
+  - `61:7917` `Auto loan`, baseline `390 x 1337`.
+  - `61:8071` `Student loan`, baseline `390 x 1329`.
+  - `61:8218` `Personal loan`, baseline `390 x 1403`.
+  - `61:8365` `Mortgage-EY`, baseline `390 x 1411`.
+  - `61:8515` `Filter - Account`, baseline `390 x 522` with sheet export `430 x 562`.
+- Figma reference screenshots saved under `FigmaExports/credit-*.png`.
+- Implemented route `.credit`, launch args `-BONInitialRoute credit`, `-BONCreditState ...`, and `-BONCreditSheet ...` for PixelQA.
+- Added Credit production assets under `BON/Assets.xcassets/credit*.imageset/`.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Main viewport simulator references:
+  - `PixelQA/credit-flow/credit-main-first-viewport-v4.png`
+  - `PixelQA/credit-flow/credit-main-sim-first-viewport-v4-390.png`
+- Detail and modal simulator references:
+  - `PixelQA/credit-flow/credit-auto-loan-detail-v3.png`
+  - `PixelQA/credit-flow/credit-auto-loan-detail-v3-390.png`
+  - `PixelQA/credit-flow/credit-card-debt-first-viewport.png`
+  - `PixelQA/credit-flow/credit-offer-details-custom-overlay.png`
+  - `PixelQA/credit-flow/credit-account-picker-custom-overlay.png`
+- Corrections made during QA:
+  - Main Credit content now uses real iPhone Pro `24pt` side margins instead of centering a fixed `342pt` column.
+  - Product header now preserves the Figma section start while using the Figma `64pt` internal top offset.
+  - Loan hero images now fill and clip their Figma image frames; auto loan receives a crop scale to offset source-image whitespace.
+  - Offer details and account picker now use app-owned modal overlays instead of native SwiftUI sheets, because native sheets forced the top edge too low.
+
+### Review Notes
+
+- First implementation pass is build-clean and launchable.
+- Remaining visual refinements for a later pass: replace SF-symbol approximations with exact Figma vector icons for row/category controls, tune long Credit Card Debt internals beyond the first viewport, and do a full scroll/video QA for modal entrance timing.
+- Avoid touching unrelated dirty files except where routing/shared components require it.
+
+---
+
+## 2026-05-24 - Restore Home AI Report Morph Motion
+
+### Check-In Status
+
+- Status: completed.
+- Scope: fix the Home `Talk with AI` / `AI mode` transition into `61:1398` so it uses the agreed smooth morph from the Home AI preview block, not a separate move-in/move-out transition.
+- User feedback:
+  - Destination is now correct, but the animation is wrong.
+  - The agreed behavior is a smooth morph, not a generic move in/out.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: keep the first-timer AI report inside the local Home state machine, but make the morph itself an explicit transition layer. The state machine swaps underlying screens only after the visual expansion/close has completed.
+
+### Plan
+
+- [x] Re-read relevant motion lessons.
+- [x] Record this correction plan.
+- [x] Replace the direct Home/report state swap with an explicit `AIReportTransition` overlay.
+- [x] Capture the Home AI preview frame and use it as the morph source.
+- [x] Expand the AI report surface to full screen with background wash, gradient lime edge glow, staged content reveal, and disabled-animation state handoff.
+- [x] Reverse the same path for `61:1398 -> Home`.
+- [x] Add a launch-argument-only QA trigger for headless simulator recording.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Install, record `Home -> 61:1398 -> Home`, and inspect intermediate frames.
+- [x] Update lessons with the wrong-motion correction.
+
+### Verification Results
+
+- Code quality: `git diff --check -- BON/Screens/Home/HomeFirstTimerClickedView.swift` passed.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Installed latest build and launched Home on the booted iPhone 17 Pro simulator.
+- Settled Home screenshot saved at `PixelQA/home-ai-report-explicit-morph-home.png`.
+- Motion recording saved at `PixelQA/home-ai-report-explicit-morph.mp4`.
+- Timed intermediate-frame QA saved at:
+  - `PixelQA/home-ai-report-explicit-morph-timed-v2/01-home-before.png`
+  - `PixelQA/home-ai-report-explicit-morph-timed-v2/02-opening-early.png`
+  - `PixelQA/home-ai-report-explicit-morph-timed-v2/03-opening-mid.png`
+  - `PixelQA/home-ai-report-explicit-morph-timed-v2/04-open-settled.png`
+  - `PixelQA/home-ai-report-explicit-morph-timed-v2/05-closing-early.png`
+  - `PixelQA/home-ai-report-explicit-morph-timed-v2/06-closing-mid.png`
+  - `PixelQA/home-ai-report-explicit-morph-timed-v2/07-home-after.png`
+  - `PixelQA/home-ai-report-explicit-morph-timed-v2-montage.png`
+- Initial timed frame review showed the report content fading over Home chrome too early. Fixed by adding a full-screen white background wash and delaying destination content/chrome reveal inside the morph overlay.
+- Simulator desktop accessibility still exposes no clickable Simulator window, so the recording uses launch args `-BONAutoAIReportMorph -BONAutoAIReportClose`. Those args call the same `showAIReport()` and `showHome()` code paths and do not affect normal app behavior.
+
+### Review Notes
+
+- Destination and motion must both be correct; a correct destination with the wrong transition is still a failed tap path.
+- The implementation fix is intentionally narrow but structural: an explicit overlay owns the morph, while Home/report views remain normal settled states.
+- The QA launch args are allowed because this file already supports launch-argument screen states for PixelQA; they are inert unless explicitly passed.
+
+---
+
+## 2026-05-23 - Route Home AI Controls To First-Timer AI Report
+
+### Check-In Status
+
+- Status: completed.
+- Scope: fix the Home `Talk with AI` / `AI mode` destination so it opens the first-timer AI report/chat screen `61:1398`, not the older generic AI chat screen.
+- User feedback:
+  - The current tap opens the wrong screen.
+  - The correct screen is Figma node `61:1398`.
+  - The Home preview contains the first half of that same AI report, so the destination should be the local report surface.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: keep `61:1398`, `61:1094`, and `61:1523` inside the first-timer Home state machine; reserve global `AIChatView` for deeper composer/chat scenarios only.
+
+### Plan
+
+- [x] Re-read relevant motion/routing lessons.
+- [x] Fetch live Figma context and screenshot for `61:1398`.
+- [x] Patch Home `AI mode` and floating `Talk with AI` to call the local AI report surface.
+- [x] Preserve the AI report composer path into the deeper chat screen.
+- [x] Add local matched report-surface continuity from the Home preview into `61:1398`.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Install, launch Home, tap `Talk with AI`, and capture the resulting screen.
+- [x] Update lessons with the wrong-destination correction.
+
+### Verification Results
+
+- Figma MCP context fetched for node `61:1398`.
+- Figma screenshot saved at `FigmaExports/home-firsttimer-61-1398-current-reference.png`.
+- Code quality: `git diff --check` passed.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Simulator install/launch: installed rebuilt app and launched Home with `-BONHomeFirstTimerState home`.
+- Tap-path verification: tapped Home `Talk with AI`; destination is now the first-timer AI report surface, not `AIChatView`.
+- Screenshot saved at `PixelQA/home-talk-ai-opens-61-1398-report.png`.
+
+### Review Notes
+
+- This is a destination bug first and a motion bug second.
+- Do not send Home AI controls to `AIChatView`; that screen is not the first-timer Home AI report.
+
+---
+
+## 2026-05-23 - Correct Talk With AI To Approved AI Mode Morph
+
+### Check-In Status
+
+- Status: completed.
+- Scope: make the Home `Talk with AI` button trigger the exact same transition source as the approved top `AI mode` path.
+- User feedback:
+  - Previous correction still looked unchanged.
+  - The desired motion is specifically the old `AI mode -> chat -> Home` morph, not a separate CTA-source zoom.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: route `Talk with AI` through `.modePill` and keep only the active matched transition source mounted.
+
+### Plan
+
+- [x] Re-read motion lessons and prior failed correction.
+- [x] Record this correction plan.
+- [x] Patch `Talk with AI` to use `.modePill` instead of `.cta`.
+- [x] Restore active-only matched transition source attachment.
+- [x] Defer chat route append by one main-runloop tick so SwiftUI mounts the selected transition source before the zoom starts.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Install and record `Talk with AI -> chat -> Home` again.
+- [x] Update lessons with the failed-correction pattern.
+
+### Verification Results
+
+- Code quality: `git diff --check` passed.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Simulator install/launch: installed the rebuilt app and launched Home with `-BONHomeFirstTimerState home`.
+- Full-path recording:
+  - `PixelQA/ai-chat-talk-uses-modepill-morph.mp4`
+  - `PixelQA/ai-chat-talk-uses-modepill-wide-montage.png`
+  - `PixelQA/ai-chat-talk-uses-modepill-fine-montage.png`
+- Cleaner opening recording:
+  - `PixelQA/ai-chat-talk-modepill-morph-short.mp4`
+  - `PixelQA/ai-chat-talk-modepill-morph-short-montage.png`
+- Result: `Talk with AI` now routes through `.modePill`, and `AppRouter.openAIChat(source:)` defers the route append by one main-runloop tick so the selected `matchedTransitionSource` is mounted before the Navigation zoom starts.
+- Caveat: Simulator accessibility stopped exposing the chat Home button during the short recording, so the short recording proves the opening path; the longer recording contains the return-to-Home path.
+
+### Review Notes
+
+- The goal is not merely any morph from the tapped CTA; it must visually match the user-approved top `AI mode` transition.
+- The stale-looking behavior can happen if `aiEntrySource` and `path.append(.aiChat)` are mutated in the same SwiftUI update cycle; route timing is part of the visual contract.
+- Future check: if the user still wants the morph to originate from the visible floating `Talk with AI` pill rather than the approved top `AI mode` source, that is a different source decision, not a router timing bug.
+
+---
+
+## 2026-05-23 - Reuse Approved AI Chat Morph For All Entrypoints
+
+### Check-In Status
+
+- Status: completed.
+- Scope: make `Talk with AI` entry and chat Home exit use the same approved morph animation as the top `AI mode` entry/return path.
+- User feedback:
+  - `AI mode` top entry and back Home has the correct old morph animation.
+  - `Talk with AI` and the chat Home button currently do not use that morph.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: reuse one shared route transition/source model for AI chat instead of maintaining separate navigation behaviors per button.
+
+### Plan
+
+- [x] Review relevant motion lessons before implementation.
+- [x] Record this correction plan before code changes.
+- [x] Inspect current `AI mode`, `Talk with AI`, and chat Home handlers.
+- [x] Identify the approved morph primitive and make both paths call it.
+- [x] Preserve Reduce Motion behavior and avoid duplicate source/destination surfaces.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture/record motion evidence for `Talk with AI -> chat -> Home`.
+- [x] Record verification results and lessons.
+
+### Verification Results
+
+- Code quality: `git diff --check` passed.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Real tap path checked on booted iPhone 17 Pro simulator:
+  - `Talk with AI -> AI chat -> Home`: `PixelQA/ai-chat-talk-cta-home-morph-fix-full.mp4`.
+  - Frame review: `PixelQA/ai-chat-talk-cta-home-morph-fix-montage.png`.
+  - Fine frame review around push/pop: `PixelQA/ai-chat-talk-cta-home-morph-fix-fine-montage.png`.
+  - `AI mode -> AI chat -> Home` regression check: `PixelQA/ai-chat-mode-pill-home-morph-regression.mp4`.
+- Result: `Talk with AI` now uses the `.cta` matched transition source, `AI mode` uses the `.modePill` matched transition source, and chat Home pop returns through the matching visible source.
+
+### Review Notes
+
+- Do not invent a new transition. The goal is parity with the already-approved `AI mode` transition.
+- Verify the real tap path, not only settled screenshots.
+- Removed the dead local `showAI` Home callback so `Talk with AI` cannot silently diverge into the old local surface switch again.
+
+---
+
+## 2026-05-23 - Budgeting Intent CTA Motion
+
+### Check-In Status
+
+- Status: completed.
+- Scope: implement the new BON `Liquid Intent` CTA motion on the `Build your plan` button in the first-timer budgeting screen.
+- User feedback:
+  - CTAs are the most important controls on each screen.
+  - Avoid old/boring shimmer-only patterns.
+  - Start cleanly with `Build your plan` in budgeting.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: add a reusable BON intent CTA component and wire budgeting to it, instead of baking CTA animation into the screen-specific button.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this CTA-specific plan before code changes.
+- [x] Inspect current CTA/button component patterns.
+- [x] Build a reusable `BONIntentCTA` with ready resolve, caustic edge light, magnetic depth, touch-responsive press, and accessibility fallbacks.
+- [x] Replace the budgeting `Build your plan` CTA with the reusable component without changing its Figma size/position.
+- [x] Verify Reduce Motion and Reduce Transparency behavior in code.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture settled budgeting screenshot and motion evidence.
+- [x] Record results and lessons.
+
+### Verification Results
+
+- Code quality: `git diff --check` passed.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Simulator launch: installed and launched `com.abhinavjain.bon` on booted iPhone 17 Pro with `-BONHomeFirstTimerState budgeting`.
+- Settled screenshot: `PixelQA/budgeting-intent-cta-settled.png`.
+- Motion recording: `PixelQA/budgeting-intent-cta-motion.mp4`.
+- Motion frame review: `PixelQA/budgeting-intent-cta-motion-montage.png`.
+- Tuning update: increased the CTA caustic/light sweep speed by changing the cycle from `7.2s` to `5.6s`.
+- Faster motion recording: `PixelQA/budgeting-intent-cta-motion-faster.mp4`.
+- Faster motion frame review: `PixelQA/budgeting-intent-cta-motion-faster-montage.png`.
+- Accessibility fallbacks: verified in code with `accessibilityReduceMotion` disabling resolve/press scale/caustic animation and `accessibilityReduceTransparency` disabling caustic/glow layers while retaining a readable solid CTA surface.
+
+### Review Notes
+
+- Motion must persuade quietly; no aggressive looping, flashing, or generic broad shimmer.
+- Preserve the approved budgeting card-open transition and final screen geometry.
+- Only animate this primary CTA in the budgeting screen; secondary controls remain calm.
+- Implemented the CTA as reusable `BONIntentCTA`, then routed `FirstTimerPlanButton` through it so future primary CTAs can adopt the same motion intentionally.
+- No new correction lesson was added in this pass because build and first visual QA did not expose a repeatable mistake pattern.
+
+---
+
+## 2026-05-23 - Budgeting Card Open Correction
+
+### Check-In Status
+
+- Status: completed.
+- Scope: replace the irritating Home budgeting card open interaction, where a blank white screen appears and content pops in.
+- User feedback:
+  - Current implementation is poor.
+  - Clicking the budgeting card shows a strange white screen and then content suddenly appears.
+  - The interaction feels irritating instead of smooth.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: stop relying on cross-tree matched geometry for this interaction. Use a transition overlay with one explicit progress value, keep Home underneath, and commit to the budgeting screen only after the overlay finishes.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this correction plan before code changes.
+- [x] Replace the matched source/destination handoff with a controlled overlay open transition.
+- [x] Keep the Home card visually present during the opening motion; no blank full-screen white interstitial.
+- [x] Move budgeting content reveal into the overlay so title/heatmap/rows/CTA resolve gradually before final state handoff.
+- [x] Make final `FirstTimerBudgetingView` stable without replaying the entry animation after handoff.
+- [x] Preserve close behavior without creating a fade-only return path.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture settled screen and motion evidence.
+- [x] Update lessons after the correction.
+
+### Verification Results
+
+- Code quality: `git diff --check` passed.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Open motion recording: `PixelQA/home-budgeting-open-correction-timing.mp4`.
+- Open transition frame review: `PixelQA/home-budgeting-open-correction-timing-fine2-montage.png`.
+- Settled budgeting screenshot: `PixelQA/home-budgeting-open-correction-timing-final.png`.
+- Close motion recording: `PixelQA/home-budgeting-close-correction-timing.mp4`.
+- Settled Home after close: `PixelQA/home-budgeting-close-correction-final-home.png`.
+- Result: the card now opens through a single clipped overlay, so the mini graph, title, heatmap, rows, close button, and CTA are visible during the transition instead of a blank white destination appearing first.
+
+### Review Notes
+
+- The previous lesson is not enough: keeping matched sources visible still allowed a white full-screen destination to appear too early.
+- The intended interaction is a card opening into a screen, not a screen appearing behind a delayed content animation.
+- The first correction still felt too abrupt with `.smooth(duration:)`; the final pass uses a controlled timing curve and a longer handoff before committing the final screen.
+
+---
+
+## 2026-05-23 - First Timer Budgeting Screen And Card Morph (`61:1523`)
+
+### Check-In Status
+
+- Status: completed with one recorded caveat.
+- Scope: refine the first-timer budgeting destination against Figma `61:1523`, replacing bottom-sheet style entry with a card-to-full-screen matched morph and adding the requested staged budgeting animations.
+- Source frame: Figma `61:1523`, opened from the Home `Do free budgeting` card.
+- User feedback:
+  - The Home card should expand into the full screen; no bottom-sheet slide.
+  - The card graph should resolve into the full heatmap.
+  - Title, heatmap, rows, insight emphasis, CTA, and close should animate smoothly and precisely.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: keep this inside `HomeFirstTimerClickedView`, reuse the existing Home namespace, and make the budgeting card/screen share matched geometry IDs for the surface and graph while local staged content animations are owned by the budgeting screen.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this budgeting-specific plan before code changes.
+- [x] Fetch Figma design context and screenshot for `61:1523`.
+- [x] Inspect current Home budgeting card and budgeting destination implementation.
+- [x] Replace bottom-sheet transition with matched card-to-screen open/close.
+- [x] Match budgeting layout/geometry against Figma `61:1523`.
+- [x] Add title settle, heatmap resolve, row cascade, one Dining emphasis, CTA reveal, and Reduce Motion fallbacks.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture budgeting destination, transition/mid-state where practical, and side-by-side reference.
+- [x] Record verification results and lessons.
+
+### Verification Results
+
+- Figma MCP context fetched for `61:1523`; live reference saved at `FigmaExports/home-firsttimer-61-1523-budgeting-live-latest.png`.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Code quality: `git diff --check` passed.
+- Static PixelQA:
+  - Final simulator capture: `PixelQA/home-budgeting-61-1523-final-v6.png`.
+  - Logical crop: `PixelQA/home-budgeting-61-1523-final-v6-logical-crop.png`.
+  - Side-by-side with live Figma reference: `PixelQA/home-budgeting-61-1523-final-v6-side-by-side.png`.
+- Motion QA:
+  - Full open/close recording before the final transition-wrapper cleanup: `PixelQA/home-budgeting-card-open-close-final-v3.mp4`.
+  - Open-frame montage: `PixelQA/video-thumbs-budgeting-final-v3/open2-montage.png`.
+  - Close-frame montage before the last cleanup: `PixelQA/video-thumbs-budgeting-final-v3/end-montage.png`.
+  - Result: open now has a visible card-to-screen handoff and staged content reveal. The last code cleanup removed the extra budgeting opacity transition so the reverse path is not masked by a fade, but Simulator accessibility stopped exposing the window before I could record a fresh close-only click path.
+
+### Review Notes
+
+- Preserve the approved Home top morph and bottom nav behavior.
+- Keep tiny Home card heatmap artwork asset-backed; the full-screen heatmap can stay SwiftUI-drawn because it is data-like and animated.
+- Reject per-cell theatrical animation; use grouped waves and small movements only.
+- The static screen is close against Figma, with expected iPhone 17 Pro Dynamic Island and device-height differences versus the 390 x 845 Figma artboard.
+- Follow-up needed when Simulator accessibility is available again: record one close-only path after the final transition-wrapper cleanup and confirm the surface compresses back into the Home card rather than fading.
+
+---
+
+## 2026-05-23 - Home Top AI Glow And Scroll Morph (`61:1297`)
+
+### Check-In Status
+
+- Status: in progress.
+- Scope: remove the AI edge glow from regular Home, keep glow only on AI-specific surfaces, and correct the Home top scroll morph toward Figma `61:1297`.
+- Source frame: Figma `61:1297`, Home scrolled state.
+- User feedback:
+  - Full outer edge glow is an AI chat distinction and should not surround the whole Home app.
+  - On Home, only the small AI/report surface should carry that glow.
+  - The bottom nav morph is good, but the top scroll animation should smoothly morph so only `Talk with AI` lands in the top bar.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: keep the existing `HomeFirstTimerClickedView` state machine, make AI glow an explicit background/surface role, and drive top chrome morph from the same scroll progress as nav collapse.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this motion-specific plan before code changes.
+- [x] Fetch Figma design context and screenshot for `61:1297`.
+- [x] Inspect current Home top chrome/preview implementation and current scrolled simulator state.
+- [x] Remove global Home edge glow while keeping AI/report glow available.
+- [x] Add localized AI/report glow to the Home preview surface only.
+- [x] Refine top chrome scroll morph so AI mode transitions into `Talk with AI` instead of switching abruptly.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture Home resting and scrolled state screenshots.
+- [x] Record verification results and lessons.
+
+### Verification Results
+
+- Figma reference saved at `FigmaExports/home-firsttimer-61-1297-live-topmorph.png`.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Code quality: `git diff --check` passed.
+- Simulator screenshots:
+  - Resting Home: `PixelQA/home-topmorph-final-rest.png`.
+  - Mid-transition: `PixelQA/home-topmorph-final-mid.png`.
+  - Scrolled Home: `PixelQA/home-topmorph-final-scrolled.png`.
+  - AI/report surface still keeping edge glow: `PixelQA/home-topmorph-ai-glow-still-ai.png`.
+  - Scrolled side-by-side review: `PixelQA/home-topmorph-61-1297-side-by-side.png`.
+- Visual result:
+  - Home no longer renders the full-screen AI edge glow.
+  - The AI/report preview retains localized lime glow.
+  - `Talk with AI` is now a single scroll-driven floating CTA that moves from the preview into the top bar; the old duplicated mid-transition pill state was removed.
+  - The top `AI mode` control fades out from the first drag instead of waiting for the collapse threshold.
+  - Scrolled content now reaches the Figma `61:1297` composition range.
+
+### Review Notes
+
+- Preserve the approved nav component and compact morph from the previous pass.
+- Do not change first-timer report-card geometry in this pass.
+- Prefer scroll-driven/interpolated motion over state thresholds for the top controls.
+- Remaining expected difference: iPhone 17 Pro simulator has a real Dynamic Island/safe area, while the Figma frame is a 390 x 845 artboard reference.
+
+---
+
+## 2026-05-23 - Home Bottom Nav Pixel Pass (`61:1266`)
+
+### Check-In Status
+
+- Status: in progress.
+- Scope: correct the Home bottom navigation bar against the Figma nav node, including geometry, icon sizing, label typography, Liquid Glass surface, inner shadow, and bottom placement.
+- Source node: Figma `61:1266` inside Home frame `61:1094`.
+- User feedback: the nav bar is one of the most important pieces and is currently off from Figma.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: keep `BONBottomNav` as the single reusable nav component and fix its anatomy from Figma evidence first, instead of adding screen-specific overlays or one-off Home-only nav code.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this nav-specific plan before code changes.
+- [x] Fetch exact Figma design context and screenshot for `61:1266`.
+- [x] Fetch exact Figma design context and screenshot for compact nav `61:1372`.
+- [x] Capture or inspect current simulator nav state.
+- [x] Patch `BONBottomNav` geometry, typography, icon sizing, surface, and inner-shadow layers.
+- [x] Preserve compact nav behavior used by scroll states.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture Home nav screenshot/crop and compare with Figma reference.
+- [x] Record verification results and update lessons for any corrected miss.
+
+### Verification Results
+
+- Figma references:
+  - Expanded nav: `FigmaExports/nav-61-1266-live.png`.
+  - Compact nav: `FigmaExports/nav-compact-61-1372-live.png`.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Simulator screenshots:
+  - Expanded Home: `PixelQA/nav-final-expanded-home.png`.
+  - Expanded crop: `PixelQA/nav-final-expanded-home-crop.png`.
+  - Compact Home: `PixelQA/nav-final-compact-home.png`.
+  - Compact crop: `PixelQA/nav-final-compact-home-crop.png`.
+  - Expanded side-by-side: `PixelQA/nav-expanded-side-by-side-logical.png`.
+  - Compact side-by-side: `PixelQA/nav-compact-side-by-side-logical.png`.
+- Geometry check:
+  - Expanded simulator nav uses responsive Home width: `354pt x 64pt` on iPhone 17 Pro, preserving the approved `24pt` side margin rule.
+  - Compact simulator nav measured `200pt x 44pt`, matching Figma `61:1372`.
+  - Compact icon frame origins now follow Figma `x = 20, 55, 90, 125, 160` inside the `200pt` pill.
+- Code quality: `git diff --check` passed.
+
+### Review Notes
+
+- Figma first: match nav fill, shadow, inner shadow, item spacing, icon frame, and labels before adding extra Liquid Glass polish.
+- Keep the existing approved Home layout and report/home transition untouched.
+- Preserve vector-backed nav icons and avoid raster replacements for the tab icons.
+- Native `glassEffect` on the dark nav capsule was rejected for this pass because simulator crops showed it washing the surface grey and burying foreground controls; the component now uses the Figma-measured dark fill with a custom soft inset highlight.
+
+---
+
+## 2026-05-22 - Home Close Animation Correction
+
+### Check-In Status
+
+- Status: completed.
+- Scope: replace the current report-to-home close animation with the previously approved chat/AI-mode style motion.
+- User feedback: the Home screen is good, but the closing animation is not; use the previous chat Home / `AI mode` CTA animation style.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: reuse the existing `BONMotion.matchedMorph` spring family and keep the same state-machine boundary, instead of adding another bespoke linear animation.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this correction plan before code changes.
+- [x] Inspect approved chat/AI-mode motion primitives.
+- [x] Replace the report-to-home linear close with matched morph timing.
+- [x] Remove transition details that fight the matched morph.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Verify the tap path from report Home control to Home state.
+- [x] Record results and update lessons.
+
+### Verification Results
+
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Tap-path verification:
+  - Before screenshot: `PixelQA/home-close-correction-before.png`.
+  - After screenshot: `PixelQA/home-close-correction-final-state.png`.
+  - Transition recording: `PixelQA/home-close-correction-matched-morph.mp4`.
+- Code quality: `git diff --check` passed.
+
+### Review Notes
+
+- Preserve current Home layout and asset parity from `61:1094`.
+- Do not alter the AI report card geometry in this pass.
+- The disliked linear full-report-to-preview geometry morph was removed.
+- The close now uses `BONMotion.matchedMorph`, matching the spring family used by the approved AI mode/chat transition.
+
+---
+
+## 2026-05-22 - Home Screen Smart-Close Pass (`61:1094`)
+
+### Check-In Status
+
+- Status: completed.
+- Scope: implement and verify the Home screen reached from the first-timer AI report top-right Home control.
+- Source frame: Figma node `61:1094`, `Home - First timer - clicked on home`.
+- User feedback: screen should come after clicking Home from the chat/report screen, with a smooth linear smart-animate style close from chat to home.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: keep the existing `HomeFirstTimerClickedView` state machine, but make the report-to-home transition a dedicated morph/close overlay instead of relying only on generic SwiftUI insertion/removal transitions.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this plan before Figma/code changes.
+- [x] Fetch Figma design context, metadata, and screenshot for `61:1094`.
+- [x] Compare `61:1094` with current `FirstTimerHomeDashboardView`.
+- [x] Patch only the home/dashboard state and report-to-home transition.
+- [x] Add Reduce Motion fallback for the close animation.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture Home resting state and transition-relevant screenshots.
+- [x] Generate side-by-side PixelQA against Figma.
+- [x] Record verification results and remaining intentional deviations.
+
+### Verification Results
+
+- Figma MCP reference saved at `FigmaExports/home-firsttimer-61-1094-mcp-live-current.png` (`390 x 1086`).
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Home screenshots:
+  - `PixelQA/home-firsttimer-61-1094-live-home-final.png`
+  - `PixelQA/home-firsttimer-61-1094-live-home-final-logical.png`
+- PixelQA comparisons:
+  - `PixelQA/firsttimer-61-1094-live-home-side-by-side-final.png`
+  - `PixelQA/firsttimer-61-1094-more-actions-side-by-side-final.png`
+- Transition verification:
+  - Tapped the top-right Home control from the report screen with Simulator automation.
+  - Recorded transition artifact at `PixelQA/home-close-transition-final.mp4`.
+  - Final state screenshot after the close path saved at `PixelQA/home-firsttimer-61-1094-after-video-close-transition.png`.
+- Code quality: `git diff --check` passed.
+
+### Review Notes
+
+- Preserve the just-approved `61:1398` report screen work.
+- The report-to-home transition now uses a dedicated matched report surface with linear timing instead of push navigation.
+- The Home action shortcut icons are exact Figma vector assets installed in `Assets.xcassets`.
+- The Home budgeting card now uses the Figma-exported heatmap artwork instead of a SwiftUI approximation.
+- Intentional deviation: the simulator/real iPhone shows the Dynamic Island over the app, while the Figma frame has static status-bar artwork only.
+- Responsive deviation: on iPhone 17 Pro, Home content uses the agreed 24pt margins, so the More actions budget card is wider than the 390pt Figma baseline while preserving the same left anchor and right inset.
+
+---
+
+## 2026-05-21 - Updated First-Timer Home Flow Audit (`61:1093`)
+
+### Check-In Status
+
+- Status: analysis in progress; implementation intentionally paused until questions are resolved.
+- Scope: updated first-timer Home screen flow from Figma node `61:1093`.
+- User goal: clean, pixel-perfect native SwiftUI implementation of the updated design, starting with first-timer Home flow.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: audit the full updated Home flow and identify exact states/assets/interactions before touching SwiftUI, so prior home/story assumptions are not blindly reused.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this checklist before Figma/code analysis.
+- [x] Fetch Figma metadata, design context, variables, and screenshot for node `61:1093`.
+- [x] Identify all frames/states in the updated first-timer Home flow.
+- [x] Compare updated Figma anatomy with current `HomeFirstTimerClickedView` implementation.
+- [x] List assets/icons/graphics that must be exported or redrawn.
+- [x] List implementation risks and exact questions for the user before coding.
+
+### Verification Results
+
+- Read-only Figma audit completed through MCP.
+- Section screenshot saved at `FigmaExports/home-first-timer-61-1093-section.png`.
+- Direct frames found:
+  - `61:1398` - `Home - First timer`, `390 x 1420`
+  - `61:1094` - `Home - First timer - clicked on home`, `390 x 1086`
+  - `61:1523` - `Home - First timer - budgeting`, `390 x 845`
+  - `61:1297` - `Home - First timer - clicked on home`, `390 x 845`
+- No Swift build required yet because implementation is intentionally paused for flow clarification.
+
+### Review Notes
+
+- User direction: pause the separate Figma design-system page work and focus on pixel-perfect implementation of the updated designs.
+- Must not assume the old `1:628`/story-flow implementation still matches the new `61:1093` design.
+- Figma finding: the updated Home flow is credit-report/card-linking centric, not the old hero plus two feature cards.
+- Current code mismatch: `HomeFirstTimerClickedView` still renders the old `Hi Marcus`/`$5250/yr` hero, `What you can do with BON Credit`, and old story pages; `HomeFirstTimerModels` still contains the removed subscription card.
+- Open implementation question: determine whether `61:1398` is the initial launch surface, a scrollable pre-link state, or an expanded detail state before replacing the current home flow.
+
+---
+
+## 2026-05-21 - Updated First-Timer Home Flow Implementation (`61:1093`)
+
+### Check-In Status
+
+- Status: completed.
+- Scope: replace the old first-timer home/story implementation with the updated Figma flow from section `61:1093`.
+- Confirmed product flow:
+  - `61:1398` is the first user landing screen and is a long scrollable AI chat-style surface.
+  - Tapping the top-right Home control transitions smoothly to `61:1094`.
+  - `61:1297` is the smooth scrolled state of `61:1094`.
+  - Tapping `Do free budgeting` opens `61:1523`.
+  - The prior TikTok/story flow should be replaced.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: one native `HomeFirstTimerClickedView` state machine with shared first-timer components, SwiftUI-drawn structured graphics, and existing asset-backed icons/nav where available.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record confirmed flow before editing SwiftUI.
+- [x] Capture or reuse Figma references for `61:1398`, `61:1094`, `61:1297`, and `61:1523`.
+- [x] Replace old home/story code with updated AI landing, dashboard, scrolled home, and budgeting states.
+- [x] Add polished transitions: AI landing to Home, Home scroll chrome collapse, budgeting push/dismiss.
+- [x] Keep graphics native where data-like: score gauge, liabilities card, card rows, heatmaps.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture PixelQA screenshots for landing, home, scrolled home, and budgeting.
+- [x] Document verification results and remaining visual risks.
+
+### Verification Results
+
+- Figma references saved:
+  - `FigmaExports/home-firsttimer-61-1398.png` (`390 x 1420`)
+  - `FigmaExports/home-firsttimer-61-1094.png` (`390 x 1086`)
+  - `FigmaExports/home-firsttimer-61-1297.png` (`390 x 845`)
+  - `FigmaExports/home-firsttimer-61-1523.png` (`390 x 845`)
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- PixelQA screenshots captured:
+  - `PixelQA/home-firsttimer-61-1398-ai-landing-final.png`
+  - `PixelQA/home-firsttimer-61-1094-home-final.png`
+  - `PixelQA/home-firsttimer-61-1297-home-scrolled-final.png`
+  - `PixelQA/home-firsttimer-61-1523-budgeting-final.png`
+- Correction QA: moved the AI landing composer into the long scroll content, added effective safe-area fallback for ignored roots, fixed `home-scrolled` launch parsing, and prevented the budgeting `Entertainment` row from wrapping.
+
+### Review Notes
+
+- User emphasis: the flow should feel smooth, pleasant, polished, and pixel-conscious, with beautiful motion wherever it clarifies state.
+- Do not carry over old subscription card or old story pages.
+- Remaining visual risk: issuer logos and the security illustration are still native approximations rather than exact exported Figma assets; the data graphics remain SwiftUI-drawn as requested.
+- The old TikTok/story pages are removed from the home implementation and replaced by the updated first-timer state machine.
+
+---
+
+## 2026-05-21 - First-Timer AI Landing Correction (`61:1398`)
+
+### Check-In Status
+
+- Status: implementation in progress.
+- Scope: fix only the first AI chat landing screen before addressing the rest of the flow.
+- User feedback: previous approved AI Chat screen treatment was better; reuse its border glow, icon/composer style, and polished chat shell while adding the new report content.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: share/reuse existing AI Chat glass/glow primitives and install the provided credit-score PNG as a production asset, instead of improving the rough hand-drawn score gauge.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record correction plan before editing.
+- [x] Locate provided credit-score PNG in `Svg icons`.
+- [x] Install `credit score.png` into `Assets.xcassets` with a semantic asset name.
+- [x] Reuse AI Chat glow/composer glass primitives for the first-timer landing screen.
+- [x] Replace the credit-score card graphic with the supplied PNG.
+- [x] Tighten liabilities and open-credit-card cards for spacing/color/scale.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture first-screen PixelQA screenshot and inspect against `61:1398`.
+- [x] Update verification results and lessons if more corrections are needed.
+
+### Verification Results
+
+- Asset installed as `firstTimerCreditScoreGraphic` from `Svg icons/credit score.png`.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- PixelQA screenshots:
+  - `PixelQA/home-firsttimer-61-1398-ai-landing-chatstyle-fix-late.png`
+  - `PixelQA/home-firsttimer-61-1398-ai-landing-chatstyle-width-fix.png`
+  - `PixelQA/home-firsttimer-61-1398-ai-landing-final-top.png`
+  - `PixelQA/home-firsttimer-61-1398-ai-landing-final-composer.png`
+- Visual check: first-timer AI report now reuses the approved AI Chat edge glow, top icon glass surface, dark center-pill surface, and composer glass/action surface.
+- Visual check: report content is capped to the Figma chat column width (`342pt`) while the later home/dashboard responsive width remains unchanged.
+- Visual check: lower long-chat state uses the approved top scrim so fixed chrome does not create hard overlap while scrolling, and lime prompt pills now stay single-line at the Figma widths.
+
+### Review Notes
+
+- Do not change the Home dashboard or budgeting screens in this pass unless required by shared primitive access.
+- The first screen should feel like the earlier approved AI chat screen with the updated credit-report content.
+- Remaining visual risk: issuer logos inside `Open credit cards` are still native/text approximations because only the credit-score PNG was supplied for this pass.
+
+---
+
+## 2026-05-21 - First-Timer Report Card Measurement Correction (`61:1398`)
+
+### Check-In Status
+
+- Status: implementation in progress.
+- Scope: fix the three report cards on the first chat landing screen: Credit score, Liabilities, and Open credit cards.
+- User feedback: visual mismatches remain in score graphic placement, liabilities alignment, card row typography/color, and numeric font family/weight.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: measure the saved Figma reference and update the card components from exact baseline geometry/type roles instead of continuing visual nudges.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this correction checklist before editing.
+- [x] Measure Figma `61:1398` card geometry and compare with current simulator.
+- [x] Correct the credit-score PNG placement inside its card.
+- [x] Correct Liabilities card vertical alignment and text styles.
+- [x] Correct Open credit cards title, summary metrics, row typography, row colors, and numeric font family.
+- [x] Build on iPhone 17 Pro simulator.
+- [x] Capture fresh PixelQA screenshot and inspect against Figma.
+- [x] Update lessons with the specific prevention rule.
+
+### Verification Results
+
+- Created comparison crops:
+  - `PixelQA/firsttimer-61-1398-card-region-side-by-side-pass-1.png`
+  - `PixelQA/firsttimer-61-1398-card-region-side-by-side-pass-2.png`
+  - `PixelQA/firsttimer-61-1398-card-region-side-by-side-pass-3.png`
+  - `PixelQA/firsttimer-61-1398-card-region-side-by-side-pass-4.png`
+  - `PixelQA/firsttimer-61-1398-card-region-side-by-side-final.png`
+- Final screenshot: `PixelQA/home-firsttimer-61-1398-report-cards-final.png`.
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Measurement: Figma lime gauge bbox in centered 402pt comparison was `x=30...169, y=266...354`; final simulator was `x=30...175, y=272...350`, materially closer than the previous pass and no longer vertically misplaced.
+- Installed exact small issuer marks as asset catalog images from the Figma reference for Chase, Amex, Discover, and Capital One.
+
+### Review Notes
+
+- Do not work on the other Home screens in this pass.
+- Do not claim visual parity unless the first-screen card region has been measured against `FigmaExports/home-firsttimer-61-1398.png`.
+- Correction note: the first measured typography pass made rows too small; the final version restored the Figma row size and changed weight/color/assets instead.
+
+---
+
+## 2026-05-22 - First-Timer Spacing Correction (`61:1398`)
+
+### Check-In Status
+
+- Status: completed.
+- Scope: correct basic spacing on the first chat landing screen against the Figma frame shown by the user.
+- User feedback: first screen is better but still visibly differs in basic spacing around the top controls, intro, report cards, and open-credit-cards section.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: use one measured baseline transform for the `390 x 1420` long Figma frame inside the iPhone Pro simulator, then adjust screen spacing constants only where measured drift proves it.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this correction checklist before editing.
+- [x] Capture current simulator state and create full/top/card side-by-side comparisons.
+- [x] Measure vertical anchors for link pill, intro, cards, and open-card panel against Figma.
+- [x] Correct spacing constants in the first-timer AI report only.
+- [x] Rebuild and recapture the first screen.
+- [x] Save final side-by-side QA artifacts.
+- [x] Update lessons with the spacing-specific prevention rule.
+
+### Verification Results
+
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Simulator screenshot captured at `PixelQA/home-firsttimer-61-1398-spacing-pass-2.png`.
+- Normalized QA artifacts saved:
+  - `PixelQA/firsttimer-61-1398-spacing-side-by-side-pass-2.png`
+  - `PixelQA/firsttimer-61-1398-user-figma-vs-pass-2.png`
+- Correction: moved the report content start from `safeTop + 118` to `safeTop + 109`, and reduced the gap above `Open credit cards` from `14pt` to `4pt`.
+- Visual check: intro text, small report cards, `Open credit cards` title, summary row, divider, and first card rows now align to the normalized Figma grid.
+
+### Review Notes
+
+- Do not touch other screens in this pass.
+- Do not use the scaled Simulator-window screenshot as the source of truth; use saved Figma export plus simulator screenshot normalized to points.
+- User's latest Figma screenshot was also normalized and compared because the saved export can lag the active design view.
+
+---
+
+## 2026-05-22 - Exact First-Timer Card Geometry Correction (`61:1398`)
+
+### Check-In Status
+
+- Status: completed.
+- Scope: correct the first-timer AI report cards using the user's explicit measurements.
+- User feedback: previous pass still missed basic card spacing and card internals.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: encode the card anatomy directly in component geometry instead of broad screen-level vertical nudges.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this exact correction checklist before editing.
+- [x] Set all card headings to `16pt` from card top.
+- [x] Set the gaps between the two horizontal cards and the vertical card to `12pt`.
+- [x] Anchor `614` to `16pt` from the credit-score card bottom.
+- [x] Anchor the liabilities bottom copy group to `20pt` from the liabilities card bottom.
+- [x] Keep `24pt` between `Open credit cards` heading and summary content.
+- [x] Show only three credit-card rows before `view all`.
+- [x] Redesign `view all` CTA with explicit size, border, and shadow.
+- [x] Build, capture simulator screenshot, and save QA artifact.
+
+### Verification Results
+
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Screenshot captured at `PixelQA/home-firsttimer-61-1398-exact-card-geometry.png`.
+- Normalized QA artifacts saved:
+  - `PixelQA/home-firsttimer-61-1398-exact-card-geometry-logical.png`
+  - `PixelQA/firsttimer-61-1398-exact-card-geometry-side-by-side.png`
+- `git diff --check`: passed.
+- Implementation matches the user-provided component measurements: 16pt headings, 12pt card gaps, 16pt/20pt bottom anchors, 24pt open-card heading-to-content gap, three visible rows, and explicit `view all` CTA styling.
+
+### Review Notes
+
+- User-provided measurements are the source of truth for this pass.
+- Do not touch the later Home dashboard or budgeting screens.
+
+---
+
+## 2026-05-22 - Figma MCP Deep Verification (`61:1398`)
+
+### Check-In Status
+
+- Status: completed.
+- Scope: verify the current SwiftUI first-timer AI report screen against exact Figma MCP evidence for node `61:1398`.
+- User feedback: verify everything deeply and precisely now that Figma MCP is working.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: do a read-only Figma-backed audit first, record precise mismatches, then only patch if the evidence clearly identifies scoped fixes.
+
+### Plan
+
+- [x] Review relevant lessons and existing correction notes.
+- [x] Record this verification checklist before running Figma/simulator checks.
+- [x] Fetch Figma design context for node `61:1398`.
+- [x] Fetch Figma metadata for node `61:1398`.
+- [x] Fetch and save Figma screenshot for node `61:1398`.
+- [x] Build and capture fresh iPhone 17 Pro simulator screenshot.
+- [x] Normalize Figma and simulator screenshots to comparable logical dimensions.
+- [x] Measure top chrome, intro, card geometry, row count, typography/asset risks, CTA, and visible viewport.
+- [x] Record verification findings and decide whether immediate code fixes are needed.
+
+### Verification Results
+
+- Live Figma MCP context confirmed node `61:1398` as a `390 x 1420` screen with:
+  - report column `x=24 y=158 w=342`
+  - intro text `253 x 44`
+  - two top cards `165 x 156` with `12pt` horizontal gap
+  - open-card panel `342 x 490`
+  - Figma row typography: issuer `Zalando Sans Medium 16`, details `Zalando Sans Regular 14`, row amount `Geist Pixel Grid 16`, min payment `Zalando Sans Light 14 #c78100`.
+- Live Figma screenshot saved:
+  - `FigmaExports/home-firsttimer-61-1398-mcp-live-verify.png`
+  - `FigmaExports/home-firsttimer-61-1398-mcp-live-verify-padded-402.png`
+- Build: passed with `xcodebuild -project BON.xcodeproj -scheme BON -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`.
+- Fresh simulator screenshots captured:
+  - `PixelQA/home-firsttimer-61-1398-live-verify-top-final.png`
+  - `PixelQA/home-firsttimer-61-1398-live-verify-scroll520-final-settled.png`
+- Side-by-side QA artifacts saved:
+  - `PixelQA/firsttimer-61-1398-live-verify-top-final-side-by-side.png`
+  - `PixelQA/firsttimer-61-1398-live-verify-scroll520-final-settled-side-by-side.png`
+- Numeric diff artifacts saved:
+  - top viewport diff: `27.1435%` at threshold `8`, saved as `PixelQA/firsttimer-61-1398-live-verify-top-final-diff.png`
+  - scrolled viewport diff: `41.1376%` at threshold `8`, saved as `PixelQA/firsttimer-61-1398-live-verify-scroll520-final-settled-diff.png`
+  - Note: these diff percentages are noisy because the app intentionally differs from live Figma in row count/panel height and iPhone 17 Pro native status chrome.
+- Code corrections made from the live Figma evidence:
+  - tightened `614` tracking to Figma's `-3.2`
+  - changed small-card fills to plain white and exact `0 8 32 rgba(0,0,0,0.12)` shadow
+  - changed open-card panel shadow to exact `0 8 16 rgba(0,0,0,0.12)`
+  - changed `view all` border/shadow to Figma border and `0 4 4 rgba(0,0,0,0.08)`
+  - changed prompt bubble corner radii to `20/20/0/20`.
+- `git diff --check`: passed.
+
+### Review Notes
+
+- Figma MCP is now available and must be treated as source of truth.
+- Do not rely on stale `FigmaExports` alone.
+- Do not touch later Home dashboard/budgeting screens during this verification.
+- Current app intentionally differs from live Figma in two places because of explicit user direction:
+  - only three credit-card rows are visible before `view all`; live Figma still shows four rows in a `490pt` panel.
+  - open-card heading is kept at `16pt` from card top; live Figma has `20pt`, but the user explicitly specified `16pt`.
+- iPhone 17 Pro native Dynamic Island/status chrome differs from the Figma static status-bar layer, so top status-bar pixels should not be counted as implementation drift.
+- The report column remains fixed at `342pt` and centered on the `402pt` iPhone 17 Pro viewport, preserving the approved Pro-device responsive policy.
+
+---
+
+## 2026-05-21 - BON Design System Creation Skill Pass
+
+### Check-In Status
+
+- Status: in progress.
+- Scope: create reusable design-system creation workflow artifacts before touching the updated Figma design-system page.
+- Source design reference: `O2 Final`, node `61:1093`, provided by the user as the current high-quality design source.
+- Output files: `design_system_creation_skill.md` and `figma_design_system_creation_skill.md`.
+- Staff-engineer question: Is there a simpler, more elegant system boundary?
+- Boundary decision: separate the platform-agnostic BON design-system creation discipline from the Figma-page construction workflow so future work can audit, document, and build without mixing research, canvas mutation, and native iOS implementation.
+
+### Plan
+
+- [x] Review relevant lessons before implementation.
+- [x] Record this checklist before creating files.
+- [x] Use subagents for independent design-system research and repo-constraint review.
+- [x] Research current public guidance from Apple, Figma, Material, and mature consumer/product design systems.
+- [x] Create `design_system_creation_skill.md`.
+- [x] Create `figma_design_system_creation_skill.md`.
+- [x] Review generated files against BON workflow lessons and skill-creator guidance.
+- [x] Record verification results and review notes.
+
+### Verification Results
+
+- Created `design_system_creation_skill.md` for BON's source audit, token taxonomy, component contracts, native iOS mapping, governance, and verification gates.
+- Created `figma_design_system_creation_skill.md` for phased Figma page/library creation with variables, styles, component properties, auto layout, validation, and resumable state management.
+- Ran `git diff --check`; passed with no whitespace errors.
+- No app code changed, so no Xcode build was required for this pass.
+
+### Review Notes
+
+- User direction: designs in the new Figma area are now the proper source for color, typography, scaling, shadows, and overall BON system quality.
+- This pass should not mutate Figma yet; it should create the reusable skill/workflow layer first, then we can discuss the actual design-system page build.
+- Research constraint: Apple-native iOS behavior and Liquid Glass hierarchy are the visual/interaction baseline; Material, Airbnb, Uber, Spotify, and Shopify are useful for token discipline, component contracts, accessibility process, and governance rather than direct BON visuals.
+- Subagent note: two focused agents returned useful research/constraint findings; the third Figma-library research agent was closed after timing out because primary-source Figma guidance had already been reviewed.
+
+---
+
 ## 2026-05-07 - AI Chat Budget Graph Color Correction (`1:5397`)
 
 ### Check-In Status

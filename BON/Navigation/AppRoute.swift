@@ -12,4 +12,5 @@ enum AIChatEntrySource: String, Hashable {
 enum AppRoute: Hashable {
     case designAudit
     case aiChat
+    case credit
 }
