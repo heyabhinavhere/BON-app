@@ -38,6 +38,12 @@
 		A1B2C3D4E5F6000000000129 /* HomeFirstTimerClickedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000230 /* HomeFirstTimerClickedView.swift */; };
 		A1B2C3D4E5F6000000000130 /* AIChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000231 /* AIChatView.swift */; };
 		A1B2C3D4E5F6000000000131 /* CreditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000232 /* CreditView.swift */; };
+		A1B2C3D4E5F6000000000132 /* CardLinkingComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000233 /* CardLinkingComponents.swift */; };
+		A1B2C3D4E5F6000000000133 /* LinkCreditCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000234 /* LinkCreditCardView.swift */; };
+		A1B2C3D4E5F6000000000134 /* LinkCreditCardGiftView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000235 /* LinkCreditCardGiftView.swift */; };
+		A1B2C3D4E5F6000000000135 /* LinkBankAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000236 /* LinkBankAccountView.swift */; };
+		A1B2C3D4E5F6000000000136 /* LinkCreditCardPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000237 /* LinkCreditCardPopup.swift */; };
+		A1B2C3D4E5F6000000000137 /* CardLinkingPreviewHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000238 /* CardLinkingPreviewHost.swift */; };
 		A1B2C3D4E5F6000000000138 /* SpendView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000239 /* SpendView.swift */; };
 		A1B2C3D4E5F6000000000139 /* BudgetingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000240 /* BudgetingModels.swift */; };
 		A1B2C3D4E5F6000000000140 /* BudgetingComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000241 /* BudgetingComponents.swift */; };
@@ -83,6 +89,12 @@
 		A1B2C3D4E5F6000000000230 /* HomeFirstTimerClickedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeFirstTimerClickedView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000231 /* AIChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000232 /* CreditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000233 /* CardLinkingComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardLinkingComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000234 /* LinkCreditCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkCreditCardView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000235 /* LinkCreditCardGiftView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkCreditCardGiftView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000236 /* LinkBankAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkBankAccountView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000237 /* LinkCreditCardPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkCreditCardPopup.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000238 /* CardLinkingPreviewHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardLinkingPreviewHost.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000239 /* SpendView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000240 /* BudgetingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetingModels.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000241 /* BudgetingComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetingComponents.swift; sourceTree = "<group>"; };
@@ -179,6 +191,7 @@
 				A1B2C3D4E5F6000000000313 /* Home */,
 				A1B2C3D4E5F6000000000314 /* AIChat */,
 				A1B2C3D4E5F6000000000315 /* Credit */,
+				A1B2C3D4E5F6000000000316 /* CardLinking */,
 				A1B2C3D4E5F6000000000319 /* Spend */,
 			);
 			path = Screens;
@@ -264,6 +277,19 @@
 				A1B2C3D4E5F6000000000232 /* CreditView.swift */,
 			);
 			path = Credit;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F6000000000316 /* CardLinking */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F6000000000233 /* CardLinkingComponents.swift */,
+				A1B2C3D4E5F6000000000234 /* LinkCreditCardView.swift */,
+				A1B2C3D4E5F6000000000235 /* LinkCreditCardGiftView.swift */,
+				A1B2C3D4E5F6000000000236 /* LinkBankAccountView.swift */,
+				A1B2C3D4E5F6000000000237 /* LinkCreditCardPopup.swift */,
+				A1B2C3D4E5F6000000000238 /* CardLinkingPreviewHost.swift */,
+			);
+			path = CardLinking;
 			sourceTree = "<group>";
 		};
 		A1B2C3D4E5F6000000000318 /* Returning */ = {
@@ -397,6 +423,12 @@
 				A1B2C3D4E5F6000000000129 /* HomeFirstTimerClickedView.swift in Sources */,
 				A1B2C3D4E5F6000000000130 /* AIChatView.swift in Sources */,
 				A1B2C3D4E5F6000000000131 /* CreditView.swift in Sources */,
+				A1B2C3D4E5F6000000000132 /* CardLinkingComponents.swift in Sources */,
+				A1B2C3D4E5F6000000000133 /* LinkCreditCardView.swift in Sources */,
+				A1B2C3D4E5F6000000000134 /* LinkCreditCardGiftView.swift in Sources */,
+				A1B2C3D4E5F6000000000135 /* LinkBankAccountView.swift in Sources */,
+				A1B2C3D4E5F6000000000136 /* LinkCreditCardPopup.swift in Sources */,
+				A1B2C3D4E5F6000000000137 /* CardLinkingPreviewHost.swift in Sources */,
 				A1B2C3D4E5F6000000000138 /* SpendView.swift in Sources */,
 				A1B2C3D4E5F6000000000139 /* BudgetingModels.swift in Sources */,
 				A1B2C3D4E5F6000000000140 /* BudgetingComponents.swift in Sources */,

@@ -5,7 +5,21 @@ struct RootView: View {
     @EnvironmentObject private var router: AppRouter
     @Namespace private var aiEntryNamespace
 
+    @ViewBuilder
     var body: some View {
+        // Card-linking QA hook: `-BONCardLinking <scenario>` short-circuits the
+        // production navigation graph so we can capture pixel evidence of the
+        // standalone card-linking screens without touching the production
+        // navigation files that other agents are currently editing. Removing
+        // this branch leaves the production flow untouched.
+        if let scenario = CardLinkingScenario.fromLaunchArguments() {
+            CardLinkingPreviewHost(scenario: scenario)
+        } else {
+            productionStack
+        }
+    }
+
+    private var productionStack: some View {
         NavigationStack(path: $router.path) {
             HomeFirstTimerClickedView(
                 aiEntryNamespace: aiEntryNamespace,
