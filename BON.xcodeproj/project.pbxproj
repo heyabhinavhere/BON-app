@@ -38,6 +38,15 @@
 		A1B2C3D4E5F6000000000129 /* HomeFirstTimerClickedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000230 /* HomeFirstTimerClickedView.swift */; };
 		A1B2C3D4E5F6000000000130 /* AIChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000231 /* AIChatView.swift */; };
 		A1B2C3D4E5F6000000000131 /* CreditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000232 /* CreditView.swift */; };
+		A1B2C3D4E5F6000000000138 /* SpendView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000239 /* SpendView.swift */; };
+		A1B2C3D4E5F6000000000139 /* BudgetingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000240 /* BudgetingModels.swift */; };
+		A1B2C3D4E5F6000000000140 /* BudgetingComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000241 /* BudgetingComponents.swift */; };
+		A1B2C3D4E5F6000000000141 /* BudgetingIntroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000242 /* BudgetingIntroView.swift */; };
+		A1B2C3D4E5F6000000000142 /* BuildPlanSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000243 /* BuildPlanSheet.swift */; };
+		A1B2C3D4E5F6000000000143 /* ManualBudgetForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000244 /* ManualBudgetForm.swift */; };
+		A1B2C3D4E5F6000000000144 /* PlanLockedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000245 /* PlanLockedView.swift */; };
+		A1B2C3D4E5F6000000000145 /* SpendBudgetingDashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000246 /* SpendBudgetingDashboard.swift */; };
+		A1B2C3D4E5F6000000000146 /* SpendBudgetingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000247 /* SpendBudgetingFlow.swift */; };
 		A1B2C3D4E5F6000000000147 /* HomeReturningScenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000248 /* HomeReturningScenarios.swift */; };
 /* End PBXBuildFile section */
 
@@ -74,6 +83,15 @@
 		A1B2C3D4E5F6000000000230 /* HomeFirstTimerClickedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeFirstTimerClickedView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000231 /* AIChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000232 /* CreditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000239 /* SpendView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000240 /* BudgetingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetingModels.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000241 /* BudgetingComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetingComponents.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000242 /* BudgetingIntroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetingIntroView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000243 /* BuildPlanSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildPlanSheet.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000244 /* ManualBudgetForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualBudgetForm.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000245 /* PlanLockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLockedView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000246 /* SpendBudgetingDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendBudgetingDashboard.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000247 /* SpendBudgetingFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendBudgetingFlow.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000248 /* HomeReturningScenarios.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeReturningScenarios.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -161,6 +179,7 @@
 				A1B2C3D4E5F6000000000313 /* Home */,
 				A1B2C3D4E5F6000000000314 /* AIChat */,
 				A1B2C3D4E5F6000000000315 /* Credit */,
+				A1B2C3D4E5F6000000000319 /* Spend */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -253,6 +272,30 @@
 				A1B2C3D4E5F6000000000248 /* HomeReturningScenarios.swift */,
 			);
 			path = Returning;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F6000000000319 /* Spend */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F6000000000239 /* SpendView.swift */,
+				A1B2C3D4E5F6000000000320 /* Budgeting */,
+			);
+			path = Spend;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F6000000000320 /* Budgeting */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F6000000000240 /* BudgetingModels.swift */,
+				A1B2C3D4E5F6000000000241 /* BudgetingComponents.swift */,
+				A1B2C3D4E5F6000000000242 /* BudgetingIntroView.swift */,
+				A1B2C3D4E5F6000000000243 /* BuildPlanSheet.swift */,
+				A1B2C3D4E5F6000000000244 /* ManualBudgetForm.swift */,
+				A1B2C3D4E5F6000000000245 /* PlanLockedView.swift */,
+				A1B2C3D4E5F6000000000246 /* SpendBudgetingDashboard.swift */,
+				A1B2C3D4E5F6000000000247 /* SpendBudgetingFlow.swift */,
+			);
+			path = Budgeting;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -354,6 +397,15 @@
 				A1B2C3D4E5F6000000000129 /* HomeFirstTimerClickedView.swift in Sources */,
 				A1B2C3D4E5F6000000000130 /* AIChatView.swift in Sources */,
 				A1B2C3D4E5F6000000000131 /* CreditView.swift in Sources */,
+				A1B2C3D4E5F6000000000138 /* SpendView.swift in Sources */,
+				A1B2C3D4E5F6000000000139 /* BudgetingModels.swift in Sources */,
+				A1B2C3D4E5F6000000000140 /* BudgetingComponents.swift in Sources */,
+				A1B2C3D4E5F6000000000141 /* BudgetingIntroView.swift in Sources */,
+				A1B2C3D4E5F6000000000142 /* BuildPlanSheet.swift in Sources */,
+				A1B2C3D4E5F6000000000143 /* ManualBudgetForm.swift in Sources */,
+				A1B2C3D4E5F6000000000144 /* PlanLockedView.swift in Sources */,
+				A1B2C3D4E5F6000000000145 /* SpendBudgetingDashboard.swift in Sources */,
+				A1B2C3D4E5F6000000000146 /* SpendBudgetingFlow.swift in Sources */,
 				A1B2C3D4E5F6000000000147 /* HomeReturningScenarios.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
