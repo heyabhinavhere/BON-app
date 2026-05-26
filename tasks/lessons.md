@@ -2,6 +2,132 @@
 
 Review this file at the start of every non-trivial BON implementation turn. After any correction, append a new entry using this exact shape: correction, root cause, prevention rule, verification rule.
 
+## 2026-05-27 - Force Fresh Simulator State With Uninstall+Install For Visual QA
+
+- Correction: Visual QA pass on the Credit components took three failed iterations because `xcrun simctl launch` was just bringing the previously-launched app to foreground instead of running its launch arguments. The launch arguments (e.g. `-BONInitialRoute credit`) only take effect when `AppRouter`'s `init()` runs, which requires a fresh process. A subsequent `xcrun simctl uninstall` + `install` + `launch` finally produced the expected screen and exposed that my CTA and nav fixes WERE actually applied in code — the screenshots had just been showing the stale running app.
+- Root cause: `simctl install` replaces the app bundle on disk but does not signal the running app to relaunch. `simctl launch` then brings the existing process to foreground rather than spawning a new one, so SwiftUI state objects like `AppRouter` keep their previous `path` value and ignore the new `-BONInitialRoute` args. `simctl terminate` sometimes succeeds, sometimes returns `found nothing to terminate` if the OS already paused the app — even when it succeeds, the relaunch can hit `FBSOpenApplicationServiceErrorDomain code 4` if timing is wrong.
+- Prevention rule: For any visual-QA pass that depends on launch arguments to set initial app state, use the full ritual: `xcrun simctl uninstall <device> <bundle-id>` → `xcrun simctl install <device> <bundle.app>` → `xcrun simctl launch <device> <bundle-id> <args>`. Sleep 2s between each step. Do not trust a screenshot captured after only `install + launch` if the previous app was still running.
+- Verification rule: Capture the first screenshot after the launch, immediately inspect it, and confirm it shows the expected initial route (e.g. the Credit screen, not the Home screen). If the screenshot shows a different surface than the launch args requested, the app is stale and ALL changes need to be re-verified after a clean reinstall.
+
+## 2026-05-27 - Figma Drop-Shadow `blur` Maps To SwiftUI `radius / 2`, Not 1:1
+
+- Correction: The Credit card debt thumbnail-carousel drop shadow was rebuilt with `radius: 16` (not `radius: 32`) for a Figma spec of `blur: 32`. The 1:1 mapping had been pumping shadows so wide that adjacent thumbnails' soft tails compounded into a near-solid grey band behind the carousel.
+- Root cause: Figma's drop-shadow `blur` parameter is the Gaussian *diameter* (≈ 2 × standard deviation), matching the CSS `box-shadow` blur convention. SwiftUI's `.shadow(radius:)` IS the Gaussian standard deviation. Treating them as the same number doubles the shadow's visible spread.
+- Prevention rule: For every Figma drop-shadow spec, use `SwiftUI radius = Figma blur / 2`. Keep `x`, `y`, opacity, and color identical between platforms. When the source is a series of closely-spaced shapes (carousels, chip rows, navs), also add `.compositingGroup()` per shape so each shadow renders against its own composite and doesn't visually merge with neighbors.
+- Verification rule: Capture the actual simulator render of the area and inspect both an individual element's shadow (it should look distinct and contained) AND the gap region between adjacent elements (it should not read as a continuous filled band). If a continuous grey band is visible between elements, the radius is too large or shapes are too close — halve the radius or increase spacing before claiming the shadow matches Figma. Existing BON shadows that were set with the 1:1 convention (e.g. `CreditPalette.cardShadow` at `radius: 32, y: 8`) are over-soft and should be audited in a future pass.
+
+## 2026-05-26 - Dark CTA Motion Is Wave + Bead, Not Particles + Caustics + Glass Wash
+
+- Correction: The dark `BONIntentCTA` (`.dark`) was rebuilt from the ground up. All previous motion layers (`BONDarkIntentGlassReflection`, `BONSignalParticleFlow`, the lime brand-glow shadow, the dark-theme `topFillColors` linear sheen) were deleted and replaced with exactly two systems: `BONDarkIntentGradientWave` (a violet→indigo radial bloom with a slow horizontal drift, a breathing radius, a secondary off-tempo indigo wash, a lavender peak highlight, and a brand-lime peak that only surfaces at the brightest bloom moments — all using `.blendMode(.screen)` + `.blur` for an organic Speak-button feel) and `BONDarkIntentBorderLight` (an `AngularGradient` stroke that orbits the capsule on a 4.6s cycle with a wide soft lime halo, a tighter inner lime halo, and a crisp white core bead — the "bean light on the edge").
+- Root cause: Iterating by stacking new motion layers on top of failing ones — particles on top of caustics on top of glass washes on top of shimmer — never produced an Apple/Airbnb-level dark CTA. Each layer fought the others and the final result read as decorative not premium. The right move was to delete everything and rebuild around a small, intentional motion vocabulary.
+- Prevention rule: For BON dark premium CTAs, restrict motion to two intentional systems — an inner colored bloom (radial gradient with drifting center, screen blend, blur) and an outer orbiting bead (angular gradient stroke). Do not add a third idle-motion layer. Idle particles, idle caustics, idle glass washes are now banned on the dark CTA.
+- Verification rule: Capture at least three delayed simulator stills plus a short video at normal scale. Reject any pass where the dark CTA shows more than two distinguishable motion systems, or where the motion reads as decoration (particles, confetti, shimmer streaks) rather than as an organic glow + an orbiting bead.
+
+## 2026-05-26 - Apple Liquid Glass Requires `glassEffect()`, Not `.ultraThinMaterial`
+
+- Correction: The Credit hero pill and circle button were rebuilt to use `.glassEffect()` on iOS 26 with an `.ultraThinMaterial + tinted fill + thin specular border` fallback for iOS 18 and Reduce Transparency. Previously they were a flat `.ultraThinMaterial` capsule with a low-opacity tint, which does not produce the Apple Liquid Glass distortion, specular highlight, or refraction.
+- Root cause: `.ultraThinMaterial` is a static blur material and only blurs what is behind it; it does not produce the per-pixel refraction and edge specular that Liquid Glass requires. Treating it as a substitute for `glassEffect()` on iOS 26 looks wrong on the real device.
+- Prevention rule: For any BON chrome that is meant to read as Apple Liquid Glass, gate on `if #available(iOS 26.0, *), !reduceTransparency { ... .glassEffect(.regular.tint(...), in: shape) }` and keep `.ultraThinMaterial` only as the iOS 18 / Reduce Transparency fallback. Pair the glass with a thin (~0.6pt) white specular `strokeBorder` masked with `.blendMode(.screen)` so the edge highlight is present on both code paths.
+- Verification rule: Run on an iOS 26 simulator and confirm the surface visibly refracts the gradient behind it (not just tints it) and shows a faint specular highlight on its top edge; on an iOS 18 simulator or Reduce Transparency, confirm the fallback still reads as a distinct frosted surface and not a flat opaque pill.
+
+## 2026-05-26 - Lock Figma Text Frames To Their Declared Height In SwiftUI
+
+- Correction: The Credit hero balance VStack was constrained to the Figma frame size (`.frame(width: 181, height: 79, alignment: .top)`) instead of letting SwiftUI auto-size based on font metrics.
+- Root cause: Custom fonts like `Geist Pixel 48pt` report a leading + ascender height greater than the visible glyph height. When the balance VStack is allowed to auto-size, it occupies more vertical space than the 79pt Figma frame, pushing every absolutely-positioned sibling below it (in this case the liabilities card) further down and breaking parity.
+- Prevention rule: Where Figma declares an explicit text frame height, pin the SwiftUI text container to that exact frame and use `alignment: .top` so baseline drift from font metrics does not silently inflate the layout.
+- Verification rule: Capture a simulator screenshot and confirm the y-position of the next absolutely-positioned sibling matches the Figma declaration. If it does not, suspect SwiftUI font-metric inflation before adjusting paddings.
+
+## 2026-05-25 - Normalize Scrollable Figma Frames To The Real Viewport
+
+- Correction: The linked Credit screen verification used a viewport-normalized Figma crop and a second content-area crop instead of treating the full `390 x 4112` long-frame export as directly comparable to a live iPhone 17 Pro screenshot.
+- Root cause: A long scrollable Figma frame includes off-screen content and a different baseline width, so comparing the raw export to a single simulator viewport overstates mismatch and hides where the visible parity problems really are.
+- Prevention rule: For BON screens that are long scrollable canvases, first resize the Figma export to the target simulator width, crop the same visible viewport, and if necessary compute a second chrome-excluded content crop before judging the pass.
+- Verification rule: Save the normalized viewport PNG, the simulator PNG, and the diff artifact together; reject any parity claim that only compares a full long-frame export against a live single-viewport screenshot.
+
+## 2026-05-25 - Signal Particles Must Stay Like Light, Not Confetti
+
+- Correction: The colorful CTA glow wave was replaced with small white/lime-white particles moving through the dark `Link card` CTA from bottom-left toward top-right.
+- Root cause: The prior saturated wave treatments kept reading as decorative UI styling instead of a premium AI signal.
+- Prevention rule: For premium dark CTA motion, prefer restrained monochrome signal movement over saturated color fields unless the Figma/reference explicitly requires color.
+- Verification rule: Capture stills and video at normal simulator scale and reject the pass if the particles read as confetti, if the black CTA body loses dominance, or if a stripe/rainbow band reappears.
+
+## 2026-05-25 - Deep Glow References Are Not Flat Spectrum Bars
+
+- Correction: The dark Credit CTA bottom effect was rebuilt from hard horizontal spectrum strips into an organic wave made from blurred glow blobs and wave-shaped masks.
+- Root cause: The prior implementation copied the idea of a moving multi-color edge too literally, producing a rectangular bar instead of the deep glow wave shown in the references.
+- Prevention rule: When a reference is a glow/wave animation, model softness, blur, irregular wave boundaries, and hidden light sources first; do not start with full-width rectangular gradient strips.
+- Verification rule: Capture the full CTA at normal simulator scale and reject any pass where the colored layer has a straight top boundary, reads as a stripe, or competes with the button label.
+
+## 2026-05-25 - Voice-Style CTA Motion Belongs On One Edge
+
+- Correction: The dark Credit CTA dropped the full-surface glass/shimmer treatment and moved to a bottom-edge multi-color live gradient glow.
+- Root cause: Full-capsule shine and rim effects were fighting the premium black pill, creating muddy surfaces, strange edges, and motion that felt like decoration instead of AI activity.
+- Prevention rule: For AI/voice-style CTA energy, localize motion to a meaningful edge or indicator layer; keep the base control stable and do not animate the whole capsule surface.
+- Verification rule: Capture delayed stills and video at normal simulator scale, and reject any pass where the base turns gray, a band appears on the wrong edge, or the capsule corners show artifacts.
+
+## 2026-05-25 - Explicitly Pin Edge Effects To Their Edge
+
+- Correction: The first bottom-glow pass was corrected after simulator QA showed the gradient band on the top edge of the button.
+- Root cause: The internal SwiftUI `ZStack(alignment: .bottom)` was sizing to its children instead of the full button geometry, so the bottom mask was not anchored to the capsule's actual bottom.
+- Prevention rule: Edge-bound motion layers inside `GeometryReader` need an explicit full-size frame with the intended alignment before clipping or masking.
+- Verification rule: Inspect the actual simulator screenshot before accepting edge effects; the named edge must be visibly correct, not inferred from code structure.
+
+## 2026-05-25 - Simplify When CTA Polish Gets Worse
+
+- Correction: The dark Credit CTA was simplified back to a stable black capsule with only restrained internal sheen after the layered glass treatment became gray and muddy.
+- Root cause: Iterating by adding more reflection layers compounded the problem instead of improving the core visual quality of a small dark pill.
+- Prevention rule: When a premium control starts looking worse, reset to the simplest acceptable base shape first, then add one controlled motion layer at a time.
+- Verification rule: Capture the control at normal screen scale and reject any pass where motion layers change the perceived base color, create gray smears, or overpower the label.
+
+## 2026-05-24 - Clipped Screenshots Are Not Valid Visual Proof
+
+- Correction: The dark Credit CTA verification was rerun after the prior evidence only showed a clipped bottom-edge CTA.
+- Root cause: A screenshot that cut off part of the component was accepted as sufficient proof, so the visual QA did not actually cover the reported corner artifact.
+- Prevention rule: For component-specific visual bugs, the captured QA frame must show the entire affected component and its surrounding context before a task can be marked complete.
+- Verification rule: If the target component is clipped, scrolled offscreen, hidden under chrome, or partially covered, adjust the real simulator state and capture again before recording completion.
+
+## 2026-05-24 - Dark CTA Glass Wash Must Not Form Inner Capsules
+
+- Correction: The dark Credit CTA moved from rim/inner-capsule lighting to a full-capsule stable glass wash with only narrow moving glints inset from the edges.
+- Root cause: Masking broad reflection layers with an inset capsule created visible black end-caps that read as strange corner artifacts.
+- Prevention rule: For dark pill CTAs, broad depth/reflection layers must follow the outer capsule; only narrow moving glints should be inset away from edges.
+- Verification rule: Capture delayed stills and a short video, then inspect both pill ends for inner-capsule outlines, rim arcs, or corner flashes.
+
+## 2026-05-24 - Shared Components Cannot Depend On Fileprivate Screen Helpers
+
+- Correction: The shared CTA component replaced a `Color.creditHex` call with a local RGB color after the build failed.
+- Root cause: `Color.creditHex` is scoped to the Credit screen file, so using it inside a shared component broke compilation.
+- Prevention rule: Shared design-system or component files must use public tokens or local values, not fileprivate helpers defined inside screen implementation files.
+- Verification rule: Run `xcodebuild` after moving screen-specific values into shared components and check compiler access-control errors before continuing QA.
+
+## 2026-05-24 - Persuasive CTA Motion Needs Enough Amplitude
+
+- Correction: The dark Credit CTA needed stronger brand-tinted glow, faster glint travel, and a second liquid highlight after the visible pass still felt too subtle.
+- Root cause: The implementation optimized for restraint after earlier loud shimmer feedback, but the product goal was persuasion, not just quiet premium depth.
+- Prevention rule: For primary conversion CTAs, tune motion to the role: calm enough to stay premium, but high enough amplitude to create desire and click intent at normal device scale.
+- Verification rule: Review delayed screenshots and a short video; if the CTA does not visibly draw attention within a few seconds, the effect is underpowered.
+
+## 2026-05-24 - CTA Motion Must Be Visible In Real Use
+
+- Correction: The dark Credit CTA needed a visible moving rim/glint layer after the first premium pass became too subtle to notice.
+- Root cause: The correction overreacted away from the loud diagonal shimmer and made the time-based motion too low contrast for normal app use.
+- Prevention rule: CTA motion should have a readable animated affordance at normal device scale; subtle is good, invisible is failed motion.
+- Verification rule: For motion-specific CTA changes, capture at least two delayed screenshots or a short simulator recording, not only one still frame.
+
+## 2026-05-24 - Dark CTAs Should Not Inherit Lime Shimmer
+
+- Correction: The dark Credit `Link card` CTA needed a separate black-glass treatment instead of the lime CTA's high-contrast moving sweep.
+- Root cause: A shared CTA effect was reused across visual themes without considering that a bright diagonal shimmer reads loud and cheap on a black premium control.
+- Prevention rule: Shared motion components must allow theme-specific motion language; dark premium CTAs should use subtle rim light, inset depth, and low-amplitude reflection, not visible marketing shimmer.
+- Verification rule: Capture the dark CTA in simulator and reject any render where the highlight becomes the dominant visual element over the button label and shape.
+
+## 2026-05-24 - Compact CTAs Need Explicit Padding
+
+- Correction: The Credit `Start chat` CTA needed compact horizontal padding after adopting the shared BON intent CTA effect.
+- Root cause: The reusable CTA's full-width default padding left too little text room inside a small card pill, causing truncation in simulator even though the component built successfully.
+- Prevention rule: When applying shared CTA components to compact Figma pills, expose sizing parameters through the component boundary instead of forcing one-off text scaling or blindly widening the control.
+- Verification rule: Capture the compact CTA in simulator and confirm the full label is visible before accepting the component reuse.
+
 ## 2026-05-24 - Verify Credit Flow Modals Against Figma Top Edge
 
 - Correction: The Credit offer details and account picker states needed app-owned modal overlays instead of native SwiftUI sheets.
