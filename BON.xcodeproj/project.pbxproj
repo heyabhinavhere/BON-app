@@ -38,6 +38,7 @@
 		A1B2C3D4E5F6000000000129 /* HomeFirstTimerClickedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000230 /* HomeFirstTimerClickedView.swift */; };
 		A1B2C3D4E5F6000000000130 /* AIChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000231 /* AIChatView.swift */; };
 		A1B2C3D4E5F6000000000131 /* CreditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000232 /* CreditView.swift */; };
+		A1B2C3D4E5F6000000000147 /* HomeReturningScenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6000000000248 /* HomeReturningScenarios.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -73,6 +74,7 @@
 		A1B2C3D4E5F6000000000230 /* HomeFirstTimerClickedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeFirstTimerClickedView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000231 /* AIChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6000000000232 /* CreditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6000000000248 /* HomeReturningScenarios.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeReturningScenarios.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -224,6 +226,7 @@
 			children = (
 				A1B2C3D4E5F6000000000229 /* HomeFirstTimerModels.swift */,
 				A1B2C3D4E5F6000000000230 /* HomeFirstTimerClickedView.swift */,
+				A1B2C3D4E5F6000000000318 /* Returning */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -242,6 +245,14 @@
 				A1B2C3D4E5F6000000000232 /* CreditView.swift */,
 			);
 			path = Credit;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F6000000000318 /* Returning */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F6000000000248 /* HomeReturningScenarios.swift */,
+			);
+			path = Returning;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -343,6 +354,7 @@
 				A1B2C3D4E5F6000000000129 /* HomeFirstTimerClickedView.swift in Sources */,
 				A1B2C3D4E5F6000000000130 /* AIChatView.swift in Sources */,
 				A1B2C3D4E5F6000000000131 /* CreditView.swift in Sources */,
+				A1B2C3D4E5F6000000000147 /* HomeReturningScenarios.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
