@@ -150,6 +150,11 @@ private struct CreditMetrics {
 
     var contentWidth: CGFloat { max(300, screenWidth - 48) }
     var navCenterY: CGFloat { screenHeight - safeBottom - 24 - 22 }
+
+    // Scroll-morph nav anchoring — mirrors HomeFirstTimerMetrics so the nav
+    // animates between the expanded resting position and the compact pinned position.
+    var expandedNavBottom: CGFloat { safeBottom + 46 }
+    var compactNavBottom: CGFloat { safeBottom + 22 }
 }
 
 private struct CreditMainScreen: View {
@@ -159,7 +164,25 @@ private struct CreditMainScreen: View {
     let onShowOfferDetails: () -> Void
     let onSelectLiability: (CreditLiabilityKind) -> Void
 
+    @State private var scrollPosition = ScrollPosition(idType: Never.self)
+    @State private var scrollOffset: CGFloat = 0
+    @State private var didApplyInitialScroll = false
+
+    private static let initialScrollY: CGFloat = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-BONCreditScrollY"),
+              args.indices.contains(i + 1),
+              let value = Double(args[i + 1]) else {
+            return 0
+        }
+        return CGFloat(value)
+    }()
+
     var body: some View {
+        let collapseProgress = min(1, max(0, (scrollOffset - 80) / 140))
+        let navHeight = 64 - (20 * collapseProgress)
+        let navBottom = metrics.expandedNavBottom + ((metrics.compactNavBottom - metrics.expandedNavBottom) * collapseProgress)
+
         ZStack(alignment: .top) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
@@ -175,45 +198,112 @@ private struct CreditMainScreen: View {
                         canvasWidth: metrics.canvasWidth,
                         contentWidth: metrics.contentWidth
                     )
-                        .frame(width: metrics.canvasWidth, height: 221)
+                    .frame(width: metrics.canvasWidth, height: 193)
 
                     CreditCardOffersSection(
                         contentWidth: metrics.contentWidth,
                         onShowDetails: onShowOfferDetails
                     )
-                        .padding(.top, 0)
+                    .padding(.top, 28)
 
                     CreditLoanOffersSection(contentWidth: metrics.contentWidth)
-                        .padding(.top, 48)
+                    .padding(.top, 48)
 
                     CreditSavingsOffersSection(contentWidth: metrics.contentWidth)
-                        .padding(.top, 48)
+                    .padding(.top, 48)
 
                     CreditDisclosuresSection()
-                        .frame(width: metrics.contentWidth)
-                        .padding(.top, 48)
+                    .frame(width: metrics.contentWidth)
+                    .padding(.top, 64)
 
-                    BONBottomNav(
-                        selectedID: "credit",
-                        items: HomeFirstTimerFixture.navItems,
-                        width: 200,
-                        variant: .compact,
-                        collapseProgress: 1
-                    ) { item in
-                        if item.id == "home" {
-                            onHome()
-                        }
-                    }
-                    .padding(.top, 32)
-                    .padding(.bottom, 24 + metrics.safeBottom)
+                    // Leave room at the bottom so the overlaid nav never covers content.
+                    Color.clear.frame(height: 160 + metrics.safeBottom)
                 }
                 .frame(width: metrics.canvasWidth)
                 .frame(maxWidth: .infinity)
             }
             .background(Color.white)
+            .scrollPosition($scrollPosition)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                max(0, geometry.contentOffset.y)
+            } action: { _, newValue in
+                scrollOffset = newValue
+            }
+            .task(id: metrics.screenHeight) {
+                guard !didApplyInitialScroll, Self.initialScrollY > 0 else { return }
+                didApplyInitialScroll = true
+                scrollOffset = Self.initialScrollY
+                scrollPosition.scrollTo(y: Self.initialScrollY)
+            }
+
+            BONBottomNav(
+                selectedID: "credit",
+                items: HomeFirstTimerFixture.navItems,
+                width: metrics.contentWidth,
+                variant: collapseProgress >= 1 ? .compact : .expanded,
+                collapseProgress: collapseProgress
+            ) { item in
+                if item.id == "home" {
+                    onHome()
+                }
+            }
+            .position(
+                x: metrics.screenWidth / 2,
+                y: metrics.screenHeight - navBottom - (navHeight / 2)
+            )
         }
         .frame(width: metrics.screenWidth, height: metrics.screenHeight)
     }
+}
+
+private enum CreditPalette {
+    static let secondaryText = Color.creditHex(0x777777)
+    static let tertiaryText = Color.creditHex(0x333333)
+    static let accentBlue = Color.creditHex(0x3B7AF0)
+    static let border = Color.creditHex(0xEEEEEE)
+    static let subtleSurface = Color.creditHex(0xF7F7F7)
+    static let divider = Color.black.opacity(0.08)
+    static let cardShadow = Color.black.opacity(0.12)
+    static let artworkShadow = Color.black.opacity(0.24)
+}
+
+/// Template-rendered Credit icon sized into a square frame.
+/// Used for the liability summary rows, account chip overlays, picker rows,
+/// product nav chips, and the AI suggest sparkle.
+private struct CreditTemplateIcon: View {
+    let asset: String
+    var size: CGFloat = 20
+    var color: Color = CreditPalette.secondaryText
+
+    var body: some View {
+        Image(asset)
+            .renderingMode(.template)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .foregroundStyle(color)
+    }
+}
+
+private struct CreditProductNavItemModel: Identifiable {
+    let id: String
+    let title: String
+    /// Template asset name when set; falls back to `systemIcon` SF Symbol otherwise.
+    var iconAsset: String? = nil
+    let systemIcon: String
+    let width: CGFloat
+    let isSelected: Bool
+}
+
+private struct CreditCardOfferModel: Identifiable {
+    let id: String
+    let imageAsset: String
+    let title: String
+    let subtitle: String
+    let annualFee: String
+    let apr: String
+    let benefits: [String]
 }
 
 private struct CreditHeroSection: View {
@@ -226,9 +316,10 @@ private struct CreditHeroSection: View {
         ZStack(alignment: .top) {
             LinearGradient(
                 stops: [
-                    .init(color: Color.creditHex(0xC5EAFA), location: 0),
-                    .init(color: Color.creditHex(0xC1EAFC), location: 0.50),
-                    .init(color: .white, location: 1)
+                    .init(color: Color.creditHex(0xC5EAFA), location: 0.00),
+                    .init(color: Color.creditHex(0xC1EAFC), location: 0.55),
+                    .init(color: Color.creditHex(0xE7F4FB), location: 0.86),
+                    .init(color: .white, location: 1.00)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -236,7 +327,7 @@ private struct CreditHeroSection: View {
             .frame(height: 609)
 
             HStack(alignment: .top) {
-                CreditCircleButton(systemName: "sparkle", size: 32)
+                CreditCircleButton(asset: "creditIconSparkle", size: 32)
 
                 Spacer(minLength: 0)
 
@@ -248,11 +339,14 @@ private struct CreditHeroSection: View {
             VStack(spacing: 2) {
                 Text("total outstanding balance")
                     .font(BONTypography.zalando(size: 12, weight: .light))
+                    .frame(height: 15)
 
                 Text("$41,860")
                     .font(BONTypography.geistPixel(size: 48))
                     .tracking(-0.96)
+                    .frame(height: 62)
             }
+            .frame(width: 181, height: 79, alignment: .top)
             .foregroundStyle(Color.black)
             .multilineTextAlignment(.center)
             .padding(.top, 150)
@@ -261,73 +355,96 @@ private struct CreditHeroSection: View {
                 .frame(width: contentWidth)
                 .padding(.top, 253)
 
-            Button(action: onOpenAI) {
-                CreditAIPromoCard(width: contentWidth)
-            }
-            .buttonStyle(BONScaleButtonStyle())
-            .padding(.top, 609)
+            CreditAIPromoCard(width: contentWidth, onOpenAI: onOpenAI)
+                .padding(.top, 609)
         }
         .frame(width: canvasWidth, height: 736, alignment: .top)
     }
 }
 
 private struct CreditLiabilitiesSummaryCard: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let onSelect: (CreditLiabilityKind) -> Void
 
     private let rows: [CreditLiabilitySummaryRow] = [
-        .init(kind: .creditCards, icon: "creditcard", title: "Credit cards balance", amount: "$11,480"),
-        .init(kind: .student, icon: "graduationcap", title: "Student loan", amount: "$10,000"),
-        .init(kind: .auto, icon: "car", title: "Auto loan", amount: "$7,456"),
-        .init(kind: .personal, icon: "doc.text", title: "Personal loan", amount: "$2,045"),
-        .init(kind: .mortgage, icon: "house", title: "Mortgage loan", amount: "$10,879")
+        .init(kind: .creditCards, icon: "creditIconCard", title: "Credit cards balance", amount: "$11,480"),
+        .init(kind: .student, icon: "creditIconStudent", title: "Student loan", amount: "$10,000"),
+        .init(kind: .auto, icon: "creditIconAuto", title: "Auto loan", amount: "$7,456"),
+        .init(kind: .personal, icon: "creditIconPersonal", title: "Personal loan", amount: "$2,045"),
+        .init(kind: .mortgage, icon: "creditIconMortgage", title: "Mortgage loan", amount: "$10,879")
     ]
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.title) { index, row in
-                Button {
-                    BONHaptics.selection()
-                    onSelect(row.kind)
-                } label: {
-                    HStack(spacing: 16) {
-                        Image(systemName: row.icon)
-                            .font(.system(size: 14, weight: .regular))
-                            .foregroundStyle(Color.black.opacity(0.46))
-                            .frame(width: 20, height: 20)
-
-                        Text(row.title)
-                            .font(BONTypography.zalando(size: 14, weight: .medium))
-                            .tracking(0.28)
-                            .foregroundStyle(Color.black)
-
-                        Spacer(minLength: 12)
-
-                        Text(row.amount)
-                            .font(BONTypography.geistPixel(size: 14))
-                            .foregroundStyle(Color.black)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.black.opacity(0.42))
-                    }
-                    .frame(height: 41)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                rowButton(for: row)
 
                 if index < rows.count - 1 {
-                    Divider()
-                        .background(Color.black.opacity(0.06))
+                    Spacer(minLength: 0).frame(height: 20)
+                    Divider().background(CreditPalette.divider)
+                    Spacer(minLength: 0).frame(height: 20)
                 }
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 24)
         .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(0.48))
-                .shadow(color: Color.black.opacity(0.12), radius: 32, x: 0, y: 8)
+            let rect = RoundedRectangle(cornerRadius: 16, style: .continuous)
+            ZStack {
+                if #available(iOS 26.0, *), !reduceTransparency {
+                    rect
+                        .fill(Color.white.opacity(0.30))
+                        .glassEffect(.regular.tint(Color.white.opacity(0.32)), in: rect)
+                } else if reduceTransparency {
+                    rect.fill(Color.white.opacity(0.92))
+                } else {
+                    rect
+                        .fill(Color.white.opacity(0.42))
+                        .background(.ultraThinMaterial, in: rect)
+                }
+
+                rect
+                    .strokeBorder(Color.white.opacity(0.42), lineWidth: 0.6)
+                    .blendMode(.screen)
+            }
         }
+        .shadow(color: CreditPalette.cardShadow, radius: 32, x: 0, y: 8)
+    }
+
+    @ViewBuilder
+    private func rowButton(for row: CreditLiabilitySummaryRow) -> some View {
+        Button {
+            BONHaptics.selection()
+            onSelect(row.kind)
+        } label: {
+            HStack(spacing: 16) {
+                Image(row.icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(CreditPalette.secondaryText)
+
+                Text(row.title)
+                    .font(BONTypography.zalando(size: 14, weight: .medium))
+                    .tracking(0.14)
+                    .foregroundStyle(Color.black)
+
+                Spacer(minLength: 12)
+
+                Text(row.amount)
+                    .font(BONTypography.geistPixel(size: 14))
+                    .foregroundStyle(Color.black)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.black.opacity(0.46))
+            }
+            .frame(height: 20)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -340,45 +457,35 @@ private struct CreditLiabilitySummaryRow {
 
 private struct CreditAIPromoCard: View {
     let width: CGFloat
+    let onOpenAI: () -> Void
 
     var body: some View {
         ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.12), radius: 32, x: 0, y: 8)
+            CreditOfferSurfaceCard(cornerRadius: 24)
 
-            Image("creditAIPromoArtwork")
-                .resizable()
-                .scaledToFill()
-                .frame(width: 185, height: 127)
-                .clipped()
-                .offset(x: -5)
-
-            Rectangle()
-                .fill(Color.white)
-                .blur(radius: 7)
-                .frame(width: 210, height: 160)
-                .offset(x: 132)
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Get debt-free faster\nwith BON Credit AI.")
-                    .font(BONTypography.zalando(size: 16, weight: .medium))
-                    .lineSpacing(2)
-                    .foregroundStyle(Color.black)
-                    .frame(width: 174, alignment: .leading)
-
-                Text("Start chat")
-                    .font(BONTypography.zalando(size: 14, weight: .medium))
-                    .foregroundStyle(Color.black)
-                    .frame(height: 36)
-                    .padding(.horizontal, 16)
-                    .background {
-                        Capsule(style: .continuous)
-                            .fill(BONColor.lime500)
-                            .stroke(Color.black, lineWidth: 1)
-                    }
+            HStack(spacing: 0) {
+                Image("creditAIPromoArtwork")
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 137, height: 127, alignment: .leading)
+                    .clipped()
+                Spacer(minLength: 0)
             }
-            .offset(x: 149)
+
+            HStack(spacing: 0) {
+                Spacer(minLength: 0).frame(width: 149)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Get debt-free faster\nwith BON Credit AI.")
+                        .font(BONTypography.zalando(size: 16, weight: .medium))
+                        .lineSpacing(2)
+                        .foregroundStyle(Color.black)
+                        .frame(width: 174, alignment: .leading)
+
+                    BONIntentCTA(title: "Start chat", theme: .lime, horizontalPadding: 16, action: onOpenAI)
+                        .frame(width: 104, height: 36)
+                }
+                Spacer(minLength: 0)
+            }
         }
         .frame(width: width, height: 127)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -388,6 +495,13 @@ private struct CreditAIPromoCard: View {
 private struct CreditProductsHeader: View {
     let canvasWidth: CGFloat
     let contentWidth: CGFloat
+
+    private let items: [CreditProductNavItemModel] = [
+        .init(id: "credit-cards", title: "Credit cards", iconAsset: "creditIconCard", systemIcon: "creditcard", width: 117, isSelected: true),
+        .init(id: "cash-advance", title: "Cash advance", systemIcon: "dollarsign.circle", width: 127, isSelected: false),
+        .init(id: "savings", title: "Savings accounts", systemIcon: "building.columns", width: 147, isSelected: false),
+        .init(id: "personal-loans", title: "Personal loans", iconAsset: "creditIconPersonal", systemIcon: "banknote", width: 130, isSelected: false)
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -399,7 +513,7 @@ private struct CreditProductsHeader: View {
 
                     Text("Find best options for you")
                         .font(BONTypography.zalando(size: 14, weight: .light))
-                        .foregroundStyle(Color.creditHex(0x777777))
+                        .foregroundStyle(CreditPalette.secondaryText)
                 }
 
                 Spacer(minLength: 0)
@@ -407,7 +521,7 @@ private struct CreditProductsHeader: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("Powered by")
                         .font(BONTypography.zalando(size: 12, weight: .light))
-                        .foregroundStyle(Color.creditHex(0x333333))
+                        .foregroundStyle(CreditPalette.tertiaryText)
                     Image("creditMoneyLionLogo")
                         .resizable()
                         .scaledToFit()
@@ -415,53 +529,96 @@ private struct CreditProductsHeader: View {
                 }
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    CreditProductChip(title: "Credit cards", systemIcon: "creditcard", isSelected: true)
-                    CreditProductChip(title: "Cash advance", systemIcon: "dollarsign.circle", isSelected: false)
-                    CreditProductChip(title: "Savings accounts", systemIcon: "banknote", isSelected: false)
-                    CreditProductChip(title: "Personal loans", systemIcon: "doc.text", isSelected: false)
-                }
-                .padding(4)
-            }
-            .frame(height: 40)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.10))
-                    .shadow(color: Color.black.opacity(0.12), radius: 4, x: 0, y: 0)
-            }
+            // Figma 61:7519 — unified pill container, 1pt #eee border, soft inset shadow, 10% white tint.
+            CreditProductsNavBar(items: items)
 
             Divider()
-                .background(Color.black.opacity(0.08))
+                .background(CreditPalette.divider)
         }
         .frame(width: contentWidth, alignment: .leading)
         .padding(.top, 64)
-        .frame(width: canvasWidth, height: 221, alignment: .top)
+        .frame(width: canvasWidth, height: 193, alignment: .top)
         .background(Color.white)
     }
 }
 
 private struct CreditProductChip: View {
-    let title: String
-    let systemIcon: String
-    let isSelected: Bool
+    let item: CreditProductNavItemModel
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: systemIcon)
-                .font(.system(size: 11, weight: .regular))
+            if let asset = item.iconAsset {
+                Image(asset)
+                    .renderingMode(.template)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+            } else {
+                Image(systemName: item.systemIcon)
+                    .font(.system(size: 12, weight: .regular))
+            }
 
-            Text(title)
-                .font(BONTypography.zalando(size: 12, weight: .regular))
+            Text(item.title)
+                .font(BONTypography.zalando(size: 12, weight: .light))
+                .tracking(0.12)
         }
-        .foregroundStyle(isSelected ? Color.white : Color.black)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(height: 32)
+        .foregroundStyle(item.isSelected ? Color.white : Color.black)
+        .frame(width: item.width, height: 32)
         .background {
+            // Figma chips inside the nav: active = black fill, inactive = clear with 4% black border.
+            // The outer pill's #eee border supplies the visible chrome around the row, so chips
+            // themselves get only a barely-visible 4% border.
             Capsule(style: .continuous)
-                .fill(isSelected ? Color.black : Color.clear)
-                .stroke(Color.black.opacity(0.04), lineWidth: 1)
+                .fill(item.isSelected ? Color.black : Color.clear)
+                .overlay {
+                    Capsule(style: .continuous)
+                        .stroke(item.isSelected ? Color.black : Color.black.opacity(0.04), lineWidth: 1)
+                }
+        }
+    }
+}
+
+/// Figma 61:7519 — unified pill container hosting horizontally-scrolling product chips.
+/// Outer chrome: 1pt `#eee` border, 4pt internal padding around chips, soft black 12% inset shadow.
+private struct CreditProductsNavBar: View {
+    let items: [CreditProductNavItemModel]
+
+    var body: some View {
+        let capsule = Capsule(style: .continuous)
+
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(items) { item in
+                    CreditProductChip(item: item)
+                }
+            }
+            .padding(4)
+        }
+        .frame(height: 40)
+        .background {
+            capsule.fill(Color.white.opacity(0.10))
+        }
+        // The inset shadow has to render INSIDE the clip mask so its blurred tail stays inside the
+        // pill. Order: clip the stack first, then add the inset shadow + outer border on top so the
+        // outer border isn't washed out by the darker inset.
+        .clipShape(capsule)
+        .overlay {
+            // Inset shadow per Figma `inset 0 0 4 rgba(0,0,0,0.12)`.
+            capsule
+                .stroke(Color.black.opacity(0.12), lineWidth: 4)
+                .blur(radius: 2)
+                .clipShape(capsule)
+                .allowsHitTesting(false)
+        }
+        .overlay {
+            // Outer border drawn LAST. Spec is `1pt #eee`, but on a white background a literal
+            // `#eee` stroke is essentially invisible at the device's native sub-pixel rendering.
+            // Figma's rasterizer over-emphasizes thin pale strokes, so we bump opacity to give the
+            // border the same visual weight the Figma export shows.
+            capsule
+                .strokeBorder(Color.black.opacity(0.10), lineWidth: 1.0)
+                .allowsHitTesting(false)
         }
     }
 }
@@ -469,6 +626,27 @@ private struct CreditProductChip: View {
 private struct CreditCardOffersSection: View {
     let contentWidth: CGFloat
     let onShowDetails: () -> Void
+
+    private let offers: [CreditCardOfferModel] = [
+        .init(
+            id: "chase",
+            imageAsset: "creditOfferChaseCard",
+            title: "Chase Sapphire Reserve",
+            subtitle: "Great for people with minimal credit history",
+            annualFee: "$0",
+            apr: "0%",
+            benefits: ["No interest", "No credit check to apply", "Help you build credit stress free"]
+        ),
+        .init(
+            id: "avant",
+            imageAsset: "creditOfferAvantCard",
+            title: "Avant credit card",
+            subtitle: "Great for repairing your credit",
+            annualFee: "$39",
+            apr: "35%",
+            benefits: ["No deposit required", "No penalty APR", "No hidden fees"]
+        )
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -482,13 +660,17 @@ private struct CreditCardOffersSection: View {
                         ForEach(["Build credit", "Balance transfer", "Dining", "Travel", "Cashback"], id: \.self) { title in
                             Text(title)
                                 .font(BONTypography.zalando(size: 14, weight: .medium))
-                                .foregroundStyle(title == "Dining" ? Color.white : Color.creditHex(0x777777))
+                                .foregroundStyle(title == "Dining" ? Color.white : CreditPalette.secondaryText)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
+                                .frame(height: 33)
                                 .background {
                                     Capsule(style: .continuous)
                                         .fill(title == "Dining" ? Color.black : Color.clear)
-                                        .stroke(title == "Dining" ? Color.black : Color.creditHex(0x777777), lineWidth: 1)
+                                        .overlay {
+                                            Capsule(style: .continuous)
+                                                .stroke(title == "Dining" ? Color.black : CreditPalette.secondaryText, lineWidth: 1)
+                                        }
                                 }
                         }
                     }
@@ -497,27 +679,10 @@ private struct CreditCardOffersSection: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 16) {
-                    CreditCardOfferCard(
-                        imageAsset: "creditOfferChaseCard",
-                        title: "Chase Sapphire Reserve",
-                        subtitle: "Great for people with minimal credit history",
-                        annualFee: "$0",
-                        apr: "0%",
-                        benefits: ["No interest", "No credit check to apply", "Help you build credit stress free"],
-                        onShowDetails: onShowDetails
-                    )
-
-                    CreditCardOfferCard(
-                        imageAsset: "creditOfferAvantCard",
-                        title: "Avant credit card",
-                        subtitle: "Great for repairing your credit",
-                        annualFee: "$39",
-                        apr: "35%",
-                        benefits: ["No deposit required", "No penalty APR", "No hidden fees"],
-                        onShowDetails: onShowDetails
-                    )
+                    ForEach(offers) { offer in
+                        CreditCardOfferCard(offer: offer, onShowDetails: onShowDetails)
+                    }
                 }
-                .padding(.bottom, 32)
             }
             .padding(.horizontal, -24)
             .contentMargins(.horizontal, 24, for: .scrollContent)
@@ -527,50 +692,51 @@ private struct CreditCardOffersSection: View {
 }
 
 private struct CreditCardOfferCard: View {
-    let imageAsset: String
-    let title: String
-    let subtitle: String
-    let annualFee: String
-    let apr: String
-    let benefits: [String]
+    let offer: CreditCardOfferModel
     let onShowDetails: () -> Void
 
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
             VStack(spacing: 16) {
-                Image(imageAsset)
+                Image(offer.imageAsset)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 292, height: 180)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(color: Color.black.opacity(0.24), radius: 32, x: 0, y: 8)
+                    .shadow(color: CreditPalette.artworkShadow, radius: 32, x: 0, y: 8)
 
                 VStack(spacing: 8) {
-                    Text(title)
+                    Text(offer.title)
                         .font(BONTypography.zalando(size: 20, weight: .medium))
                         .foregroundStyle(Color.black)
                         .lineLimit(1)
 
-                    Label(subtitle, systemImage: "sparkle")
-                        .font(BONTypography.zalando(size: 14, weight: .light))
-                        .foregroundStyle(Color.creditHex(0x3B7AF0))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12, weight: .medium))
+                        Text(offer.subtitle)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
+                    .font(BONTypography.zalando(size: 14, weight: .light))
+                    .foregroundStyle(CreditPalette.accentBlue)
                 }
+                .frame(width: 292)
             }
 
             VStack(spacing: 16) {
-                CreditStatPairBox(leftTitle: "Annual fee", leftValue: annualFee, rightTitle: "APR", rightValue: apr)
+                CreditStatPairBox(leftTitle: "Annual fee", leftValue: offer.annualFee, rightTitle: "APR", rightValue: offer.apr)
 
                 ZStack(alignment: .bottom) {
                     VStack(spacing: 12) {
-                        ForEach(benefits, id: \.self) { benefit in
+                        ForEach(offer.benefits, id: \.self) { benefit in
                             HStack(spacing: 12) {
-                                Image(systemName: "seal")
-                                    .font(.system(size: 13, weight: .light))
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 14, weight: .regular))
+                                    .foregroundStyle(CreditPalette.tertiaryText)
                                 Text(benefit)
                                     .font(BONTypography.zalando(size: 14, weight: .light))
-                                    .frame(width: 217, alignment: .leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .foregroundStyle(Color.black)
                         }
@@ -584,8 +750,9 @@ private struct CreditCardOfferCard: View {
                     Button(action: onShowDetails) {
                         HStack(spacing: 8) {
                             Text("View all details")
-                            Image(systemName: "chevron.up")
+                            Image(systemName: "chevron.down")
                                 .font(.system(size: 9, weight: .medium))
+                                .rotationEffect(.degrees(-90))
                         }
                         .font(BONTypography.zalando(size: 14, weight: .light))
                         .foregroundStyle(Color.black)
@@ -594,7 +761,10 @@ private struct CreditCardOfferCard: View {
                         .background {
                             Capsule(style: .continuous)
                                 .fill(Color.white)
-                                .stroke(BONColor.borderSubtle, lineWidth: 1)
+                                .overlay {
+                                    Capsule(style: .continuous)
+                                        .stroke(CreditPalette.border, lineWidth: 1)
+                                }
                                 .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 4)
                         }
                     }
@@ -613,9 +783,7 @@ private struct CreditCardOfferCard: View {
         .padding(20)
         .frame(width: 332)
         .background {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.12), radius: 32, x: 0, y: 8)
+            CreditOfferSurfaceCard(cornerRadius: 24)
         }
     }
 }
@@ -632,7 +800,7 @@ private struct CreditStatPairBox: View {
 
             Divider()
                 .frame(height: 43)
-                .background(Color.black.opacity(0.06))
+                .background(CreditPalette.divider)
 
             stat(title: rightTitle, value: rightValue)
         }
@@ -644,7 +812,7 @@ private struct CreditStatPairBox: View {
         VStack(spacing: 2) {
             Text(title)
                 .font(BONTypography.zalando(size: 12, weight: .light))
-                .foregroundStyle(Color.creditHex(0x333333))
+                .foregroundStyle(CreditPalette.tertiaryText)
             Text(value)
                 .font(BONTypography.geistPixel(size: 20))
                 .tracking(-0.4)
@@ -666,7 +834,7 @@ private struct CreditLoanOffersSection: View {
 
                 Text("Compare 6 loan offers for upto $10,000")
                     .font(BONTypography.zalando(size: 12, weight: .light))
-                    .foregroundStyle(Color.creditHex(0x777777))
+                    .foregroundStyle(CreditPalette.secondaryText)
             }
 
             CreditLoanOfferCard()
@@ -681,18 +849,19 @@ private struct CreditLoanOfferCard: View {
             Image("creditLoanOfferCard")
                 .resizable()
                 .scaledToFill()
-                .frame(width: 292, height: 180)
+                .frame(width: 292, height: 207)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: CreditPalette.artworkShadow, radius: 32, x: 0, y: 8)
 
-            CreditBlackCTA(title: "Apply now", width: 294, height: 47)
-            CreditUnderlinedLink(title: "Rates & terms")
+            VStack(spacing: 16) {
+                CreditBlackCTA(title: "Apply now", width: 294, height: 47)
+                CreditUnderlinedLink(title: "Rates & terms")
+            }
         }
         .padding(20)
         .frame(width: 332)
         .background {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.12), radius: 32, x: 0, y: 8)
+            CreditOfferSurfaceCard(cornerRadius: 24)
         }
     }
 }
@@ -711,7 +880,7 @@ private struct CreditSavingsOffersSection: View {
                     Image("creditSavingsChaseLogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 76, height: 22)
+                        .frame(width: 84, height: 40)
 
                     VStack(spacing: 2) {
                         Text("1.75%")
@@ -719,15 +888,17 @@ private struct CreditSavingsOffersSection: View {
                             .tracking(-0.64)
                         Text("Annual percentage yield")
                             .font(BONTypography.zalando(size: 12, weight: .light))
-                            .foregroundStyle(Color.creditHex(0x777777))
+                            .foregroundStyle(CreditPalette.secondaryText)
                     }
+                    .frame(height: 59)
 
                     CreditStatPairBox(leftTitle: "Monthly fee", leftValue: "$0", rightTitle: "Check writing", rightValue: "No")
 
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(["No minimum to open", "No monthly fees", "Member FDIC"], id: \.self) { item in
-                            Label(item, systemImage: "seal")
+                            Label(item, systemImage: "checkmark.circle.fill")
                                 .font(BONTypography.zalando(size: 14, weight: .light))
+                                .foregroundStyle(Color.black)
                         }
                     }
                     .frame(width: 292, alignment: .leading)
@@ -739,9 +910,7 @@ private struct CreditSavingsOffersSection: View {
             .padding(20)
             .frame(width: 332)
             .background {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.12), radius: 32, x: 0, y: 8)
+                CreditOfferSurfaceCard(cornerRadius: 24)
             }
         }
         .frame(width: contentWidth, alignment: .leading)
@@ -750,37 +919,51 @@ private struct CreditSavingsOffersSection: View {
 
 private struct CreditDisclosuresSection: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 24) {
             Divider()
-                .background(Color.black.opacity(0.08))
+                .background(CreditPalette.divider)
 
-            Text("Sponsored | Advertisers disclosure")
-                .font(BONTypography.zalando(size: 10, weight: .medium))
-                .foregroundStyle(Color.creditHex(0x777777))
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Sponsored | Advertisers disclosure")
+                    .font(BONTypography.zalando(size: 10, weight: .medium))
+                    .foregroundStyle(CreditPalette.secondaryText)
 
-            Text(disclosure)
-                .font(BONTypography.zalando(size: 10, weight: .light))
-                .lineSpacing(3)
-                .foregroundStyle(Color.creditHex(0x777777))
+                Text(disclosure)
+                    .font(BONTypography.zalando(size: 10, weight: .light))
+                    .lineSpacing(3)
+                    .foregroundStyle(CreditPalette.secondaryText)
+            }
 
-            Text("Additional Information")
-                .font(BONTypography.zalando(size: 10, weight: .medium))
-                .foregroundStyle(Color.creditHex(0x777777))
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Additional Information")
+                    .font(BONTypography.zalando(size: 10, weight: .medium))
+                    .foregroundStyle(CreditPalette.secondaryText)
 
-            Text(additional)
-                .font(BONTypography.zalando(size: 10, weight: .light))
-                .lineSpacing(3)
-                .foregroundStyle(Color.creditHex(0x777777))
+                Text(additional)
+                    .font(BONTypography.zalando(size: 10, weight: .light))
+                    .lineSpacing(3)
+                    .foregroundStyle(CreditPalette.secondaryText)
+            }
         }
         .frame(width: 342, alignment: .leading)
     }
 
     private var disclosure: String {
-        "The offers that appear are from companies which MoneyLion, and its partners receive compensation. This compensation may influence the selection, appearance, and order of appearance of the offers listed below."
+        "The offers that appear are from companies which Moneylion, and its partners receive compensation. This compensation may influence the selection, appearance, and order of appearance of the offers listed below. However, this compensation also facilitates the provision by Moneylion of certain services to you at no charge. The offers shown below do not include all Financial Services companies or all of their available product and service offerings."
     }
 
     private var additional: String {
-        "The listings that appear on this page are from companies from which Even Financial, Inc. may impact how, where and in what order products appear. This is directed at, and made available to, persons in the continental U.S., Alaska and Hawaii only."
+        "The listings that appear on this page are from companies from which Even Financial, Inc. / Fiona (\"Even\", \"Even Financial\", \"Fiona\", \"we\", \"us\", \"our\") and its affiliates may receive compensation, which may impact how, where and in what order products appear. These listings do not include all companies or all available products. Neither Fiona nor this website endorses or recommends any companies or products. All rates are presented without guarantee and are subject to change pursuant to each provider's discretion. There may be certain minimum deposit and/or other funding requirements as well as restrictions placed in order to open an account and/or to earn the stated Annual Percentage Yield. Maximum balance limits may also apply. Please make sure to review the details as well as any Terms and Conditions on each provider's website. APY stands for Annual Percentage Yield. It's different from an interest rate because it takes into account compounding interest. The APY is subject to change before and after account opening. MMA stands for Money Market Account. It's a savings and checking hybrid, allowing you to earn interest and write checks 6 times a month. Even Financial, Inc. is the technology platform powering financial services online. Even's API enables its partners to connect their users with real-time decisions and personalized offers and rates from premium financial services providers. All decisions and rates offered, are the responsibility of the participating partners. Any trademarks used in connection with products or services appearing on this website are the sole property of their respective owners. No affiliation or endorsement is intended or implied. Even Financial offices are located at 50 West 23rd Street, Suite 700, New York, NY 10010, Telephone number: (800) 614- 7505. This site is directed at, and made available to, persons in the continental U.S., Alaska and Hawaii only."
+    }
+}
+
+private struct CreditOfferSurfaceCard: View {
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.white)
+            .shadow(color: CreditPalette.cardShadow, radius: 32, x: 0, y: 8)
     }
 }
 
@@ -819,13 +1002,15 @@ private enum CreditLiabilityKind: String, Identifiable, CaseIterable {
         }
     }
 
-    var systemIcon: String {
+    /// Template-rendered asset name for this liability kind. Used by the liability summary card,
+    /// account picker rows, detail-screen account chip, and the credit card debt account chip overlay.
+    var iconAsset: String {
         switch self {
-        case .creditCards: "creditcard"
-        case .auto: "car"
-        case .student: "graduationcap"
-        case .personal: "doc.text"
-        case .mortgage: "house"
+        case .creditCards: "creditIconCard"
+        case .auto: "creditIconAuto"
+        case .student: "creditIconStudent"
+        case .personal: "creditIconPersonal"
+        case .mortgage: "creditIconMortgage"
         }
     }
 
@@ -873,7 +1058,7 @@ private struct CreditLiabilityDetailScreen: View {
     var body: some View {
         Group {
             if kind == .creditCards {
-                CreditCardDebtScreen(metrics: metrics, onBack: onBack)
+                CreditCardDebtScreen(metrics: metrics, onBack: onBack, onOpenAI: onOpenAI)
             } else {
                 CreditLoanDetailScreen(
                     metrics: metrics,
@@ -929,7 +1114,10 @@ private struct CreditLoanDetailScreen: View {
                         .background {
                             Capsule(style: .continuous)
                                 .fill(Color.creditHex(0x1499FF).opacity(0.10))
-                                .stroke(Color.creditHex(0x1499FF).opacity(0.11), lineWidth: 1)
+                                .overlay {
+                                    Capsule(style: .continuous)
+                                        .stroke(Color.creditHex(0x1499FF).opacity(0.11), lineWidth: 1)
+                                }
                         }
                 }
                 .padding(.top, 150)
@@ -1012,7 +1200,10 @@ private struct CreditDetailTopBar: View {
                     .background {
                         Circle()
                             .fill(Color.white.opacity(0.40))
-                            .stroke(Color.white.opacity(0.50), lineWidth: 1)
+                            .overlay {
+                                Circle()
+                                    .stroke(Color.white.opacity(0.50), lineWidth: 1)
+                            }
                             .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8)
                     }
             }
@@ -1022,8 +1213,7 @@ private struct CreditDetailTopBar: View {
 
             Button(action: onPicker) {
                 HStack(spacing: 12) {
-                    Image(systemName: kind.systemIcon)
-                        .font(.system(size: 14, weight: .regular))
+                    CreditTemplateIcon(asset: kind.iconAsset, size: 18, color: Color.black.opacity(0.84))
                         .frame(width: 32, height: 32)
                         .background {
                             Circle()
@@ -1251,216 +1441,617 @@ private struct CreditLoanAIPromo: View {
 private struct CreditCardDebtScreen: View {
     let metrics: CreditMetrics
     let onBack: () -> Void
+    var onOpenAI: () -> Void = {}
+
+    private static let initialScrollAnchor: (id: String, anchor: UnitPoint)? = {
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-BONCreditDebtScroll"), args.indices.contains(i+1) {
+            let raw = args[i+1]
+            let parts = raw.split(separator: ":", maxSplits: 1).map(String.init)
+            let id = parts[0]
+            let anchor: UnitPoint = (parts.count > 1 && parts[1] == "bottom") ? .bottom : .top
+            return (id, anchor)
+        }
+        return nil
+    }()
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                HStack {
-                    Button(action: onBack) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 15))
-                            .foregroundStyle(Color.black)
-                            .frame(width: 40, height: 40)
-                            .background(Circle().fill(Color.white).shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8))
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: 1).id("top")
+
+                    Color.clear.frame(height: 79)
+
+                    CreditCardDebtTopBar(
+                        contentWidth: metrics.contentWidth,
+                        onBack: onBack
+                    )
+
+                    Color.clear.frame(height: 38)
+
+                    CreditCardDebtBalanceHero()
+
+                    Color.clear.frame(height: 43)
+
+                    CreditCardDebtThumbnailCarousel(canvasWidth: metrics.canvasWidth)
+
+                    Color.clear.frame(height: 32)
+
+                    VStack(spacing: 48) {
+                        CreditCardDebtDetailCard(
+                            kind: .chaseActive,
+                            onOpenAI: onOpenAI
+                        )
+                        .id("card-chase")
+
+                        CreditCardDebtDetailCard(
+                            kind: .discoverWithSteps,
+                            onOpenAI: onOpenAI
+                        )
+                        .id("card-discover")
+
+                        CreditCardDebtDetailCard(
+                            kind: .amexCollapsed,
+                            onOpenAI: onOpenAI
+                        )
+                        .id("card-amex")
                     }
-                    .buttonStyle(BONScaleButtonStyle())
 
-                    Spacer()
-
-                    HStack(spacing: 12) {
-                        Image(systemName: "creditcard")
-                            .frame(width: 32, height: 32)
-                            .background(Circle().stroke(Color.black.opacity(0.16), lineWidth: 1))
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Credit cards")
-                                .font(BONTypography.zalando(size: 14, weight: .medium))
-                            Text("5 open")
-                                .font(BONTypography.zalando(size: 12, weight: .light))
-                        }
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10))
-                    }
-                    .foregroundStyle(Color.black)
+                    Color.clear.frame(height: 96 + metrics.safeBottom)
                 }
-                .frame(width: 342)
-                .padding(.top, 62)
-
-                VStack(spacing: 8) {
-                    Text("Total outstanding balance")
-                        .font(BONTypography.zalando(size: 12, weight: .light))
-                    Text("$26,893")
-                        .font(BONTypography.geistPixel(size: 48))
-                        .tracking(-0.96)
-                    Text("Costing ~ $285/mo in interest")
-                        .font(BONTypography.zalando(size: 12, weight: .regular))
-                        .foregroundStyle(Color.creditHex(0xFF3333))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color.creditHex(0xFF3333).opacity(0.10)))
-                }
-                .padding(.top, 48)
-
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Your credit cards")
-                        .font(BONTypography.zalando(size: 16, weight: .medium))
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            Image("creditOfferChaseCard").resizable().scaledToFill().frame(width: 90, height: 56).clipShape(RoundedRectangle(cornerRadius: 4))
-                            Image("creditOfferAvantCard").resizable().scaledToFill().frame(width: 90, height: 56).clipShape(RoundedRectangle(cornerRadius: 4))
-                            Image("creditOfferChaseCard").resizable().scaledToFill().frame(width: 90, height: 56).clipShape(RoundedRectangle(cornerRadius: 4))
-                        }
-                    }
-                    .padding(.horizontal, -24)
-                }
-                .frame(width: 342, alignment: .leading)
-                .padding(.top, 32)
-
-                CreditDebtCard(title: "Chase sapphire reserve", tint: Color.creditHex(0x35C759))
-                    .padding(.top, 32)
-                CreditDebtCard(title: "Discover it student", tint: BONColor.lime500)
-                    .padding(.top, 64)
-                CreditDebtChatCard()
-                    .padding(.top, 64)
-
-                Color.clear.frame(height: 80)
+                .frame(width: metrics.canvasWidth)
             }
-            .frame(width: metrics.canvasWidth)
-            .frame(maxWidth: .infinity)
+            .background(Color.white)
+            .onAppear {
+                guard let target = Self.initialScrollAnchor else { return }
+                DispatchQueue.main.async {
+                    withAnimation(nil) {
+                        proxy.scrollTo(target.id, anchor: target.anchor)
+                    }
+                }
+            }
         }
+        .frame(width: metrics.screenWidth, height: metrics.screenHeight)
         .background(Color.white)
     }
 }
 
-private struct CreditDebtCard: View {
-    let title: String
-    let tint: Color
+private struct CreditCardDebtTopBar: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    let contentWidth: CGFloat
+    let onBack: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 40, height: 40)
-                        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(title)
-                            .font(BONTypography.zalando(size: 16, weight: .medium))
-                        Text("XX 2345")
-                            .font(BONTypography.zalando(size: 12, weight: .light))
-                            .foregroundStyle(Color.creditHex(0x777777))
+        HStack(alignment: .center, spacing: 0) {
+            Button(action: onBack) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(Color.black.opacity(0.88))
+                    .frame(width: 40, height: 40)
+                    .background {
+                        CreditLiquidGlassSurface(
+                            shape: Circle(),
+                            tint: Color.white.opacity(0.28),
+                            fallbackFill: Color.white.opacity(0.46),
+                            borderOpacity: 0.55,
+                            reduceTransparency: reduceTransparency
+                        )
                     }
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .frame(height: 82)
-                .background {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white)
-                        .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 4)
-                }
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(tint)
-                        .frame(height: 1)
-                }
+                    .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+            }
+            .buttonStyle(BONScaleButtonStyle())
 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 0) {
-                    metric("$6,561", "Balance")
-                    metric("$185", "Monthly min.")
-                    metric("~$23", "Monthly interest", color: Color.creditHex(0xFF3333))
-                    metric("91%", "Current utilization")
-                }
-                .frame(height: 160)
+            Spacer(minLength: 0)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("AI suggests:", systemImage: "sparkle")
-                        .font(BONTypography.zalando(size: 10, weight: .regular))
-                        .foregroundStyle(BONColor.lime600)
-                    Text("This card is costing you the most and dragging your score as well as your overall finances down.")
+            HStack(spacing: 12) {
+                CreditTemplateIcon(asset: "creditIconCard", size: 18, color: Color.black.opacity(0.84))
+                    .frame(width: 32, height: 32)
+                    .background {
+                        Circle()
+                            .stroke(Color.black.opacity(0.12), lineWidth: 1)
+                    }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Credit cards")
+                        .font(BONTypography.zalando(size: 14, weight: .medium))
+                        .foregroundStyle(Color.black)
+                    Text("5 open")
                         .font(BONTypography.zalando(size: 12, weight: .light))
-                        .lineSpacing(3)
-                    CreditUnderlinedLink(title: "Chat about this card", color: BONColor.lime600)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-                .padding(16)
-                .frame(width: 294)
-                .background {
-                    Rectangle()
-                        .fill(BONColor.lime50)
-                        .stroke(BONColor.lime300, lineWidth: 1)
+                        .foregroundStyle(CreditPalette.secondaryText)
                 }
 
-                CreditBlackCTA(title: "Link card", width: 294, height: 47)
-                    .padding(.top, 28)
-                    .padding(.bottom, 24)
-            }
-            .frame(width: 342)
-            .background {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.12), radius: 32, x: 0, y: 8)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.black.opacity(0.64))
             }
         }
-    }
-
-    private func metric(_ value: String, _ label: String, color: Color = .black) -> some View {
-        VStack(spacing: 6) {
-            Text(value)
-                .font(BONTypography.geistPixel(size: 18))
-                .foregroundStyle(color)
-            Text(label)
-                .font(BONTypography.zalando(size: 10, weight: .light))
-                .foregroundStyle(Color.creditHex(0x777777))
-        }
-        .frame(maxWidth: .infinity, minHeight: 80)
-        .border(Color.black.opacity(0.04), width: 0.5)
+        .frame(width: contentWidth)
     }
 }
 
-private struct CreditDebtChatCard: View {
+private struct CreditCardDebtBalanceHero: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack {
-                CreditCircleButton(systemName: "chevron.left", size: 40)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Amex blue cash preferred")
-                        .font(BONTypography.zalando(size: 16, weight: .medium))
-                    Text("XX 2345")
-                        .font(BONTypography.zalando(size: 12, weight: .light))
-                        .foregroundStyle(Color.creditHex(0x777777))
-                }
-                Spacer()
-            }
-            Text("This card is costing you the most and dragging your score as well as your overall finances down.")
-                .font(BONTypography.zalando(size: 16, weight: .regular))
-                .lineSpacing(4)
-            Text("How can I payoff this card?")
-                .font(BONTypography.zalando(size: 14, weight: .regular))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(BONColor.lime100)
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 24,
-                        bottomLeadingRadius: 24,
-                        bottomTrailingRadius: 0,
-                        topTrailingRadius: 24,
-                        style: .continuous
-                    )
-                )
-                .frame(maxWidth: .infinity, alignment: .trailing)
+        VStack(spacing: 12) {
+            VStack(spacing: 4) {
+                Text("Total outstanding balance")
+                    .font(BONTypography.zalando(size: 12, weight: .light))
+                    .foregroundStyle(Color.black)
+                    .frame(height: 15)
 
-            Spacer(minLength: 260)
-            CreditMiniComposer()
+                Text("$26,893")
+                    .font(BONTypography.geistPixel(size: 48))
+                    .tracking(-0.96)
+                    .foregroundStyle(Color.black)
+                    .frame(height: 62)
+            }
+            .frame(width: 192, height: 79, alignment: .top)
+
+            Text("Costing ~ $285/mo in interest")
+                .font(BONTypography.zalando(size: 12, weight: .regular))
+                .foregroundStyle(Color.creditHex(0xFF3333))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(Color.creditHex(0xFF3333).opacity(0.10))
+                        .overlay {
+                            Capsule(style: .continuous)
+                                .stroke(Color.creditHex(0xFF3333).opacity(0.12), lineWidth: 1)
+                        }
+                }
         }
-        .padding(24)
-        .frame(width: 342, height: 544)
+    }
+}
+
+private struct CreditCardDebtThumbnailCarousel: View {
+    let canvasWidth: CGFloat
+
+    // Carousel order taken directly from Figma node 10488:9064 ("Credit card debt"):
+    // Sapphire → AMEX Gold → AMEX Blue → Discover → Sapphire (loop tail).
+    private let thumbnails: [String] = [
+        "creditCardChaseSapphire",
+        "creditCardAmexGold",
+        "creditCardAmexBlue",
+        "creditCardDiscover",
+        "creditCardChaseSapphire"
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Your credit cards")
+                .font(BONTypography.zalando(size: 16, weight: .medium))
+                .foregroundStyle(Color.black)
+                .padding(.horizontal, 24)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Array(thumbnails.enumerated()), id: \.offset) { _, asset in
+                        Image(asset)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 88, height: 54)
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            // Figma spec: drop shadow X=0 Y=8 blur=32 #000 24%.
+                            // Figma "blur" is the Gaussian *diameter* (≈ 2 × stdDev). SwiftUI `.shadow(radius:)` IS the stdDev.
+                            // Conversion: SwiftUI radius = Figma blur / 2 = 16. Using the raw blur as the radius
+                            // bleeds the shadows of adjacent thumbnails together into a grey band.
+                            .compositingGroup()
+                            .shadow(color: Color.black.opacity(0.24), radius: 16, x: 0, y: 8)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+            }
+        }
+        .frame(width: canvasWidth, alignment: .leading)
+    }
+}
+
+private enum CreditDebtCardKind {
+    case chaseActive
+    case discoverWithSteps
+    case amexCollapsed
+
+    var title: String {
+        switch self {
+        case .chaseActive: return "Chase sapphire reserve"
+        case .discoverWithSteps: return "Discover it student"
+        case .amexCollapsed: return "Amex blue cash preferred"
+        }
+    }
+
+    var subtitle: String { "XX 2345" }
+
+    var accentColor: Color {
+        switch self {
+        case .chaseActive: return Color.creditHex(0xFF3333)
+        case .discoverWithSteps: return BONColor.lime500
+        case .amexCollapsed: return Color.clear
+        }
+    }
+
+    var chipWidth: CGFloat {
+        switch self {
+        case .chaseActive: return 284
+        case .discoverWithSteps: return 248
+        case .amexCollapsed: return 301
+        }
+    }
+
+    var chipShowsBack: Bool { self == .amexCollapsed }
+}
+
+private struct CreditCardDebtDetailCard: View {
+    let kind: CreditDebtCardKind
+    let onOpenAI: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            cardBody
+                .padding(.top, 36)
+
+            CreditDebtAccountChipOverlay(kind: kind)
+        }
+        .frame(width: 342)
+    }
+
+    @ViewBuilder
+    private var cardBody: some View {
+        VStack(spacing: 32) {
+            switch kind {
+            case .chaseActive:
+                CreditDebtMetricGrid()
+                CreditDebtAISuggestPanel()
+                CreditDebtLinkCardCTA(onTap: onOpenAI)
+
+            case .discoverWithSteps:
+                CreditDebtMetricGrid()
+                CreditDebtAISuggestPanel()
+                CreditDebtNextStepsList(onSetUpAutopay: onOpenAI, onTalkWithAI: onOpenAI)
+
+            case .amexCollapsed:
+                CreditDebtCollapsedBody(onAskAI: onOpenAI)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 52)
+        .padding(.bottom, 32)
+        .frame(width: 342, alignment: .top)
         .background {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.12), radius: 32, x: 0, y: 8)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(CreditPalette.border, lineWidth: 1)
+                }
         }
+        .shadow(color: CreditPalette.cardShadow, radius: 32, x: 0, y: 8)
+    }
+}
+
+private struct CreditDebtAccountChipOverlay: View {
+    let kind: CreditDebtCardKind
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if kind.chipShowsBack {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(Color.black.opacity(0.84))
+                    .frame(width: 40, height: 40)
+                    .background {
+                        Circle()
+                            .stroke(CreditPalette.border, lineWidth: 1)
+                    }
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .overlay {
+                            Circle()
+                                .stroke(Color.creditHex(0xF7F7F7), lineWidth: 1)
+                        }
+                    CreditTemplateIcon(asset: "creditIconCard", size: 20, color: Color.black.opacity(0.84))
+                }
+                .frame(width: 48, height: 48)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(kind.title)
+                    .font(BONTypography.zalando(size: 16, weight: .medium))
+                    .tracking(0.16)
+                    .foregroundStyle(Color.black)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.86)
+                Text(kind.subtitle)
+                    .font(BONTypography.zalando(size: 14, weight: .regular))
+                    .foregroundStyle(CreditPalette.secondaryText)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .frame(width: kind.chipWidth, height: 72)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.creditHex(0xF7F7F7), lineWidth: 1)
+                }
+                .overlay(alignment: .bottom) {
+                    if kind.accentColor != Color.clear {
+                        Rectangle()
+                            .fill(kind.accentColor)
+                            .frame(height: 2)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                }
+        }
+        .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+    }
+}
+
+private struct CreditDebtMetricGrid: View {
+    var body: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    metricCell(value: "$6,561", label: "Balance")
+                    metricCell(value: "$185", label: "Monthly min.")
+                }
+                .frame(height: 80)
+
+                HStack(spacing: 0) {
+                    metricCell(value: "~$23", label: "Monthly interest", color: Color.creditHex(0xFF3333))
+                    metricCell(value: "91%", label: "Current utilization")
+                }
+                .frame(height: 80)
+            }
+
+            Rectangle()
+                .fill(CreditPalette.border)
+                .frame(height: 1)
+
+            Rectangle()
+                .fill(CreditPalette.border)
+                .frame(width: 1, height: 140)
+        }
+        .frame(width: 294, height: 160)
+    }
+
+    private func metricCell(value: String, label: String, color: Color = .black) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(BONTypography.geistPixel(size: 20))
+                .tracking(-0.4)
+                .foregroundStyle(color)
+            Text(label)
+                .font(BONTypography.zalando(size: 12, weight: .light))
+                .foregroundStyle(CreditPalette.tertiaryText)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct CreditDebtAISuggestPanel: View {
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color.white)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(BONColor.lime200, lineWidth: 1)
+                }
+                .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
+
+            LinearGradient(
+                colors: [BONColor.lime200, BONColor.lime50],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(width: 12)
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 4,
+                    bottomLeadingRadius: 4,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: 0,
+                    style: .continuous
+                )
+            )
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image("creditIconSparkle")
+                        .renderingMode(.template)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .frame(width: 12, height: 12)
+                        .foregroundStyle(BONColor.lime600)
+
+                    Text("AI suggests:")
+                        .font(BONTypography.zalando(size: 12, weight: .regular))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [BONColor.lime600, BONColor.lime500, BONColor.lime600],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                }
+
+                Text("This card is costing you the most and dragging your score as well as your overall finances down.")
+                    .font(BONTypography.zalando(size: 14, weight: .regular))
+                    .lineSpacing(6)
+                    .foregroundStyle(CreditPalette.tertiaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack {
+                    Spacer(minLength: 0)
+                    CreditUnderlinedLink(title: "Chat about this card", color: BONColor.lime600)
+                }
+            }
+            .padding(.leading, 27)
+            .padding(.trailing, 25)
+            .padding(.vertical, 11)
+        }
+        .frame(width: 294, height: 134)
+    }
+}
+
+private struct CreditDebtLinkCardCTA: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        BONIntentCTA(title: "Link card", theme: .dark, action: onTap)
+            .frame(width: 294, height: 48)
+    }
+}
+
+private struct CreditDebtNextStepsList: View {
+    let onSetUpAutopay: () -> Void
+    let onTalkWithAI: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Next steps:")
+                .font(BONTypography.zalando(size: 12, weight: .medium))
+                .foregroundStyle(CreditPalette.tertiaryText)
+
+            VStack(spacing: 16) {
+                completedStep()
+                actionStep(number: 2, title: "Set up autopay", actionLabel: "Set up now", action: onSetUpAutopay)
+                actionStep(number: 3, title: "Start debt payoff plan", actionLabel: "Talk with AI", action: onTalkWithAI)
+            }
+        }
+        .frame(width: 294, alignment: .leading)
+    }
+
+    private func completedStep() -> some View {
+        ZStack(alignment: .leading) {
+            HStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(BONColor.lime100)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(BONColor.lime700)
+                }
+                .frame(width: 24, height: 24)
+
+                Text("Link card with BON Credit")
+                    .font(BONTypography.zalando(size: 14, weight: .regular))
+                    .foregroundStyle(CreditPalette.secondaryText)
+                    .strikethrough(true, color: CreditPalette.secondaryText)
+
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(height: 24)
+    }
+
+    private func actionStep(number: Int, title: String, actionLabel: String, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .stroke(CreditPalette.border, lineWidth: 1)
+                Text("\(number)")
+                    .font(BONTypography.zalando(size: 10, weight: .regular))
+                    .foregroundStyle(CreditPalette.secondaryText)
+            }
+            .frame(width: 24, height: 24)
+
+            Text(title)
+                .font(BONTypography.zalando(size: 14, weight: .regular))
+                .foregroundStyle(CreditPalette.tertiaryText)
+
+            Spacer(minLength: 0)
+
+            Button(action: action) {
+                Text(actionLabel)
+                    .font(BONTypography.zalando(size: 12, weight: .medium))
+                    .foregroundStyle(Color.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(Color.black)
+                    }
+            }
+            .buttonStyle(BONScaleButtonStyle())
+        }
+        .frame(height: 28)
+    }
+}
+
+private struct CreditDebtCollapsedBody: View {
+    let onAskAI: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("This card is costing you the most and dragging your score as well as your overall finances down.")
+                .font(BONTypography.zalando(size: 16, weight: .regular))
+                .lineSpacing(8)
+                .foregroundStyle(Color.black)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 294, alignment: .leading)
+
+            HStack {
+                Spacer(minLength: 0)
+                Button(action: onAskAI) {
+                    Text("How can I payoff this card?")
+                        .font(BONTypography.zalando(size: 16, weight: .regular))
+                        .foregroundStyle(Color.black)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background {
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: 24,
+                                bottomLeadingRadius: 24,
+                                bottomTrailingRadius: 0,
+                                topTrailingRadius: 24,
+                                style: .continuous
+                            )
+                            .fill(BONColor.lime100)
+                        }
+                }
+                .buttonStyle(BONScaleButtonStyle())
+            }
+            .frame(width: 294)
+            .padding(.top, 12)
+
+            CreditDebtCardComposer()
+                .padding(.top, 213)
+        }
+    }
+}
+
+private struct CreditDebtCardComposer: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            Text("Chat about this card...")
+                .font(BONTypography.zalando(size: 14, weight: .regular))
+                .foregroundStyle(Color.white.opacity(0.72))
+                .padding(.leading, 24)
+
+            Spacer(minLength: 0)
+
+            ZStack {
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.18))
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(Color.white)
+            }
+            .frame(width: 72, height: 52)
+            .padding(.trailing, 6)
+        }
+        .frame(width: 294, height: 64)
+        .background(BONChatGlassCapsule())
     }
 }
 
@@ -1596,8 +2187,7 @@ private struct CreditAccountPickerSheet: View {
                         onSelect(kind)
                     } label: {
                         HStack(spacing: 20) {
-                            Image(systemName: kind.systemIcon)
-                                .font(.system(size: 15, weight: .regular))
+                            CreditTemplateIcon(asset: kind.iconAsset, size: 20, color: Color.black.opacity(0.84))
                                 .frame(width: 40, height: 40)
                                 .background(Circle().stroke(Color.black.opacity(0.08), lineWidth: 1))
 
@@ -1636,13 +2226,11 @@ private struct CreditBlackCTA: View {
     let title: String
     let width: CGFloat
     let height: CGFloat
+    var action: () -> Void = {}
 
     var body: some View {
-        Text(title)
-            .font(BONTypography.zalando(size: 14, weight: .medium))
-            .foregroundStyle(Color.white)
+        BONIntentCTA(title: title, theme: .dark, action: action)
             .frame(width: width, height: height)
-            .background(Capsule(style: .continuous).fill(Color.black))
     }
 }
 
@@ -1680,26 +2268,45 @@ private struct CreditSubtleGradientBox: View {
 }
 
 private struct CreditGlassPill: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let text: String
     let height: CGFloat
     let horizontalPadding: CGFloat
 
     var body: some View {
+        let capsule = Capsule(style: .continuous)
         Text(text)
             .font(BONTypography.zalando(size: 14, weight: .regular))
-            .foregroundStyle(Color.creditHex(0x333333))
+            .foregroundStyle(CreditPalette.tertiaryText)
             .padding(.horizontal, horizontalPadding)
             .frame(height: height)
             .background {
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.12))
-                    .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-                    .shadow(color: Color.black.opacity(0.12), radius: 24, x: 0, y: 8)
+                // Figma 61:7626 spec: fill = rgba(255,255,255,0.12), no border highlight.
+                // On iOS 26 we go through real Liquid Glass with NO additional base fill — `.regular`
+                // already provides the frosted-glass refraction, and the tint is the only color overlay.
+                // Earlier iterations added a 0.06 white base under the glass which compounded into a
+                // far more opaque pill than the Figma spec, so the base fill is dropped here.
+                if #available(iOS 26.0, *), !reduceTransparency {
+                    // Use `.clear` (the lighter Liquid Glass variant) — `.regular` is too frosted on the
+                    // blue gradient and reads more opaque than the Figma spec. `.clear` gives just the
+                    // refraction without the heavy white frosting layer.
+                    capsule
+                        .glassEffect(.clear, in: capsule)
+                } else if reduceTransparency {
+                    capsule.fill(Color.white.opacity(0.78))
+                } else {
+                    capsule
+                        .fill(Color.white.opacity(0.12))
+                        .background(.ultraThinMaterial, in: capsule)
+                }
             }
+            // Figma drop shadow: X=0, Y=8, blur=24, #000 12% → SwiftUI radius = blur/2 = 12.
+            .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 8)
     }
 }
 
 private struct CreditCircleButton: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     var asset: String?
     var systemName: String?
     let size: CGFloat
@@ -1717,25 +2324,59 @@ private struct CreditCircleButton: View {
     }
 
     var body: some View {
+        let circle = Circle()
         Group {
             if let asset {
                 Image(asset)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: size * 0.56, height: size * 0.56)
+                    .frame(width: size * 0.50, height: size * 0.50)
             } else if let systemName {
                 Image(systemName: systemName)
-                    .font(.system(size: size * 0.42, weight: .regular))
+                    .font(.system(size: size * 0.44, weight: .regular))
             }
         }
-        .foregroundStyle(Color.black)
+        .foregroundStyle(Color.black.opacity(0.88))
         .frame(width: size, height: size)
         .background {
-            Circle()
-                .fill(Color.white.opacity(0.40))
-                .background(.ultraThinMaterial, in: Circle())
-                .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8)
+            CreditLiquidGlassSurface(
+                shape: circle,
+                tint: Color.white.opacity(0.28),
+                fallbackFill: Color.white.opacity(0.46),
+                borderOpacity: 0.55,
+                reduceTransparency: reduceTransparency
+            )
+        }
+        .shadow(color: Color.black.opacity(0.08), radius: 14, x: 0, y: 6)
+    }
+}
+
+private struct CreditLiquidGlassSurface<S: InsettableShape>: View {
+    let shape: S
+    let tint: Color
+    let fallbackFill: Color
+    let borderOpacity: Double
+    let reduceTransparency: Bool
+
+    var body: some View {
+        ZStack {
+            if #available(iOS 26.0, *), !reduceTransparency {
+                shape
+                    .fill(Color.white.opacity(0.18))
+                    .glassEffect(.regular.tint(tint), in: shape)
+            } else if reduceTransparency {
+                shape.fill(Color.white.opacity(0.92))
+            } else {
+                shape
+                    .fill(fallbackFill)
+                    .background(.ultraThinMaterial, in: shape)
+            }
+
+            shape
+                .strokeBorder(Color.white.opacity(borderOpacity), lineWidth: 0.6)
+                .blendMode(.screen)
+                .allowsHitTesting(false)
         }
     }
 }
