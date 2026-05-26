@@ -11,10 +11,6 @@ struct HomeFirstTimerClickedView: View {
     @State private var budgetingCardFrame: CGRect = .zero
     @State private var budgetingTransitionProgress: CGFloat = 0
     @State private var budgetingTransition: BudgetingTransition?
-    @State private var aiReportSourceFrame: CGRect = .zero
-    @State private var aiReportTransitionProgress: CGFloat = 0
-    @State private var aiReportTransition: AIReportTransition?
-    @State private var didRunAutoAIReportMorph = false
 
     var aiEntryNamespace: Namespace.ID?
     var activeAIEntrySource: AIChatEntrySource = .cta
@@ -29,40 +25,27 @@ struct HomeFirstTimerClickedView: View {
             )
 
             ZStack {
-                FirstTimerBackground(showsAIGlow: surface == .aiLanding)
-
-                if surface == .aiLanding {
-                    FirstTimerAIReportView(
-                        metrics: metrics,
-                        namespace: homeNamespace,
-                        aiEntryNamespace: aiEntryNamespace,
-                        isActiveAITransitionSource: activeAIEntrySource == .cta,
-                        onHome: showHome,
-                        onAskAI: {
-                            onOpenAI(.cta)
-                        }
-                    )
-                    .transition(reportTransition)
-                    .allowsHitTesting(aiReportTransition == nil)
-                    .accessibilityHidden(aiReportTransition != nil)
-                    .zIndex(2)
-                }
+                FirstTimerBackground(showsAIGlow: false)
 
                 if surface == .home {
                     FirstTimerHomeDashboardView(
                         metrics: metrics,
                         namespace: homeNamespace,
+                        aiEntryNamespace: aiEntryNamespace,
+                        isActiveAITransitionSource: activeAIEntrySource == .cta,
                         scrollPosition: $dashboardScrollPosition,
                         scrollOffset: $dashboardScrollOffset,
                         didApplyInitialOffset: $didApplyInitialDashboardOffset,
                         initialOffset: HomeFirstTimerLaunch.dashboardScrollOffset,
                         onBudgeting: showBudgeting,
-                        onShowAIReport: showAIReport,
+                        onTalkWithAI: {
+                            onOpenAI(.cta)
+                        },
                         onOpenCredit: onOpenCredit
                     )
                     .opacity(1)
-                    .allowsHitTesting(surface == .home && budgetingTransition == nil && aiReportTransition == nil)
-                    .accessibilityHidden(surface != .home || budgetingTransition != nil || aiReportTransition != nil)
+                    .allowsHitTesting(surface == .home && budgetingTransition == nil)
+                    .accessibilityHidden(surface != .home || budgetingTransition != nil)
                     .transition(homeTransition)
                     .zIndex(1)
                 }
@@ -86,18 +69,6 @@ struct HomeFirstTimerClickedView: View {
                     .accessibilityHidden(true)
                     .zIndex(5)
                 }
-
-                if let aiReportTransition {
-                    FirstTimerAIReportMorphOverlay(
-                        metrics: metrics,
-                        sourceFrame: aiReportSourceFrame,
-                        progress: reduceMotion ? 1 : aiReportTransitionProgress,
-                        isClosing: aiReportTransition == .closing
-                    )
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .zIndex(6)
-                }
             }
             .frame(width: metrics.screenWidth, height: metrics.screenHeight)
             .coordinateSpace(name: "firstTimerHomeRoot")
@@ -108,32 +79,8 @@ struct HomeFirstTimerClickedView: View {
 
                 budgetingCardFrame = frame
             }
-            .onPreferenceChange(FirstTimerAIReportFrameKey.self) { frame in
-                guard frame.width > 0, frame.height > 0 else {
-                    return
-                }
-
-                aiReportSourceFrame = frame
-            }
-            .task(id: aiReportSourceFrame) {
-                guard HomeFirstTimerLaunch.autoAIReportMorph,
-                      !didRunAutoAIReportMorph,
-                      surface == .home,
-                      aiReportSourceFrame.width > 0,
-                      aiReportSourceFrame.height > 0 else {
-                    return
-                }
-
-                didRunAutoAIReportMorph = true
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                showAIReport()
-            }
         }
         .ignoresSafeArea()
-    }
-
-    private var reportTransition: AnyTransition {
-        reduceMotion ? .opacity : .identity
     }
 
     private var homeTransition: AnyTransition {
@@ -152,7 +99,6 @@ struct HomeFirstTimerClickedView: View {
         Task { @MainActor in
             BONHaptics.selection()
             let wasBudgeting = surface == .budgeting
-            let wasAIReport = surface == .aiLanding
 
             if wasBudgeting, !reduceMotion {
                 budgetingTransition = .closing
@@ -172,63 +118,8 @@ struct HomeFirstTimerClickedView: View {
                 return
             }
 
-            if wasAIReport, !reduceMotion {
-                aiReportTransition = .closing
-                aiReportTransitionProgress = 1
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    surface = .home
-                }
-
-                withAnimation(aiReportMorphAnimation) {
-                    aiReportTransitionProgress = 0
-                }
-
-                try? await Task.sleep(nanoseconds: 640_000_000)
-                clearAIReportTransition()
-                return
-            }
-
             withAnimation(closeToHomeAnimation) {
                 surface = .home
-            }
-        }
-    }
-
-    private func showAIReport() {
-        Task { @MainActor in
-            guard surface == .home, aiReportTransition == nil else {
-                return
-            }
-
-            BONHaptics.selection()
-
-            guard !reduceMotion else {
-                withAnimation(screenTransitionAnimation) {
-                    surface = .aiLanding
-                }
-                return
-            }
-
-            aiReportTransition = .opening
-            aiReportTransitionProgress = 0
-
-            withAnimation(aiReportMorphAnimation) {
-                aiReportTransitionProgress = 1
-            }
-
-            try? await Task.sleep(nanoseconds: 640_000_000)
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                surface = .aiLanding
-            }
-            clearAIReportTransition()
-
-            if HomeFirstTimerLaunch.autoAIReportClose {
-                try? await Task.sleep(nanoseconds: 760_000_000)
-                showHome()
             }
         }
     }
@@ -274,15 +165,6 @@ struct HomeFirstTimerClickedView: View {
         }
     }
 
-    @MainActor
-    private func clearAIReportTransition() {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            aiReportTransition = nil
-        }
-    }
-
     private var closeToHomeAnimation: Animation {
         screenTransitionAnimation
     }
@@ -291,21 +173,12 @@ struct HomeFirstTimerClickedView: View {
         reduceMotion ? BONMotion.reducedMotionFallback : BONMotion.matchedMorph
     }
 
-    private var aiReportMorphAnimation: Animation {
-        reduceMotion ? BONMotion.reducedMotionFallback : .timingCurve(0.24, 0.0, 0.14, 1.0, duration: 0.56)
-    }
-
     private var budgetingMorphAnimation: Animation {
         reduceMotion ? BONMotion.reducedMotionFallback : .timingCurve(0.28, 0.0, 0.12, 1.0, duration: 0.68)
     }
 }
 
 private enum BudgetingTransition {
-    case opening
-    case closing
-}
-
-private enum AIReportTransition {
     case opening
     case closing
 }
@@ -323,27 +196,13 @@ private struct FirstTimerBudgetingCardFrameKey: PreferenceKey {
     }
 }
 
-private struct FirstTimerAIReportFrameKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        guard next.width > 0, next.height > 0 else {
-            return
-        }
-
-        value = next
-    }
-}
-
 private enum HomeFirstTimerSurface: String {
-    case aiLanding
     case home
     case budgeting
 }
 
-private enum HomeFirstTimerLaunch {
-    static let surface: HomeFirstTimerSurface = {
+enum HomeFirstTimerLaunch {
+    fileprivate static let surface: HomeFirstTimerSurface = {
         let arguments = ProcessInfo.processInfo.arguments
 
         if let index = arguments.firstIndex(of: "-BONHomeFirstTimerState"),
@@ -353,14 +212,16 @@ private enum HomeFirstTimerLaunch {
                 return .home
             case "budgeting":
                 return .budgeting
-            case "ai", "ai-landing", "report":
-                return .aiLanding
             default:
                 break
             }
         }
 
-        return .aiLanding
+        // The legacy "ai", "ai-landing", and "report" values used to render the
+        // AI Chat inline in the home view. They are now translated by AppRouter
+        // into a real NavigationStack push of `.aiChat`, so the home view itself
+        // always boots into the dashboard surface.
+        return .home
     }()
 
     static let dashboardScrollOffset: CGFloat = {
@@ -392,13 +253,9 @@ private enum HomeFirstTimerLaunch {
 
         return 0
     }()
-
-    static let autoAIReportMorph = ProcessInfo.processInfo.arguments.contains("-BONAutoAIReportMorph")
-    static let autoAIReportClose = ProcessInfo.processInfo.arguments.contains("-BONAutoAIReportClose")
-
 }
 
-private struct HomeFirstTimerMetrics {
+struct HomeFirstTimerMetrics {
     let size: CGSize
     let safeArea: EdgeInsets
 
@@ -460,7 +317,7 @@ private struct FirstTimerBackground: View {
 
 // MARK: - AI Landing
 
-private struct FirstTimerAIReportView: View {
+struct FirstTimerAIReportView: View {
     @State private var scrollPosition = ScrollPosition(idType: Never.self)
     @State private var didApplyInitialOffset = false
 
@@ -468,17 +325,24 @@ private struct FirstTimerAIReportView: View {
     let namespace: Namespace.ID
     let aiEntryNamespace: Namespace.ID?
     let isActiveAITransitionSource: Bool
+    /// Vertical space reserved at the bottom of the scroll content so the
+    /// fixed chat composer (rendered by the parent) never obscures cards or
+    /// suggestion bubbles. The host passes its composer-row height plus the
+    /// home-indicator inset; defaults to `0` for previews/embedding contexts
+    /// that don't paint a fixed composer.
+    var scrollBottomReserved: CGFloat = 0
     let onHome: () -> Void
     let onAskAI: () -> Void
 
     var body: some View {
         let reportWidth = metrics.reportContentWidth
 
+        // No opaque chassis fill: `BONColor.backgroundPrimary` is already
+        // `Color.white`, and adding another white layer here would hide the
+        // `BONSiriEdgeGlow` that AIChatView renders behind this view. The
+        // scroll content sits directly on top of that glow, so the lime edges
+        // bleed through wherever there's no card.
         ZStack(alignment: .top) {
-            RoundedRectangle(cornerRadius: 56, style: .continuous)
-                .fill(Color.white)
-                .ignoresSafeArea()
-
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
                     Color.clear
@@ -512,22 +376,12 @@ private struct FirstTimerAIReportView: View {
                     .frame(width: reportWidth, alignment: .trailing)
                     .padding(.top, 23)
 
-                    FirstTimerChatComposer(
-                        width: reportWidth,
-                        placeholder: "Ask BON Credit...",
-                        action: onAskAI
-                    )
-                    .modifier(
-                        HomeAIEntrySourceModifier(
-                            namespace: aiEntryNamespace,
-                            sourceID: AIChatEntrySource.cta.transitionID,
-                            isActive: isActiveAITransitionSource
-                        )
-                    )
-                    .padding(.top, 76)
-
+                    // Trailing breathing room reserves enough space for the
+                    // host-rendered fixed composer (passed in via
+                    // `scrollBottomReserved`), plus an extra 28pt of visual
+                    // breathing room above it.
                     Color.clear
-                        .frame(height: metrics.safeBottom + 16)
+                        .frame(height: 28 + scrollBottomReserved)
                 }
                 .frame(width: metrics.screenWidth)
             }
@@ -562,11 +416,10 @@ private struct FirstTimerAIReportView: View {
         }
         .frame(width: metrics.screenWidth, height: metrics.screenHeight)
         .matchedGeometryEffect(id: "first-timer-ai-report-surface", in: namespace)
-        .clipShape(RoundedRectangle(cornerRadius: 56, style: .continuous))
     }
 }
 
-private struct FirstTimerCreditScoreCard: View {
+struct FirstTimerCreditScoreCard: View {
     let width: CGFloat
 
     var body: some View {
@@ -607,7 +460,7 @@ private struct FirstTimerCreditScoreCard: View {
     }
 }
 
-private struct FirstTimerLiabilitiesCard: View {
+struct FirstTimerLiabilitiesCard: View {
     let width: CGFloat
 
     var body: some View {
@@ -649,7 +502,7 @@ private struct FirstTimerLiabilitiesCard: View {
     }
 }
 
-private struct FirstTimerCardBackground: View {
+struct FirstTimerCardBackground: View {
     var cornerRadius: CGFloat
 
     var body: some View {
@@ -697,7 +550,7 @@ private struct FirstTimerCreditGauge: View {
     }
 }
 
-private struct FirstTimerOpenCardsPanel: View {
+struct FirstTimerOpenCardsPanel: View {
     let width: CGFloat
 
     private let cards = [
@@ -799,7 +652,7 @@ private struct FirstTimerOpenCardsPanel: View {
     }
 }
 
-private struct CreditCardRowData: Identifiable {
+struct CreditCardRowData: Identifiable {
     let id = UUID()
     let issuer: String
     let amount: String
@@ -808,7 +661,7 @@ private struct CreditCardRowData: Identifiable {
     let logoAsset: String
 }
 
-private struct FirstTimerCreditCardRow: View {
+struct FirstTimerCreditCardRow: View {
     let card: CreditCardRowData
 
     var body: some View {
@@ -851,7 +704,7 @@ private struct FirstTimerCreditCardRow: View {
     }
 }
 
-private struct FirstTimerInsightBlock: View {
+struct FirstTimerInsightBlock: View {
     let width: CGFloat
 
     var body: some View {
@@ -875,7 +728,7 @@ private struct FirstTimerInsightBlock: View {
     }
 }
 
-private struct FirstTimerSuggestionBubble: View {
+struct FirstTimerSuggestionBubble: View {
     let title: String
     let width: CGFloat
 
@@ -916,7 +769,10 @@ private struct FirstTimerSuggestionBubble: View {
     }
 }
 
-private struct FirstTimerChatComposer: View {
+struct FirstTimerChatComposer: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     let width: CGFloat
     let placeholder: String
     let action: () -> Void
@@ -950,7 +806,31 @@ private struct FirstTimerChatComposer: View {
                 .padding(.trailing, 6)
             }
             .frame(width: width, height: 64)
-            .background(BONChatGlassCapsule())
+            .background(
+                // Same dark-glass chassis as before, with the lime orbit-bead
+                // border light from the dark CTA layered on top. The
+                // `TimelineView(.animation)` drives a continuously updating
+                // `phase`, which `BONDarkIntentBorderLight` turns into a
+                // rotating angular gradient — a single bright lime/white
+                // bead sweeping along the capsule edge with halo + bloom.
+                // Pauses entirely under Reduce Motion / Reduce Transparency.
+                ZStack {
+                    BONChatGlassCapsule()
+
+                    if !reduceTransparency {
+                        TimelineView(.animation(paused: reduceMotion)) { timeline in
+                            let phase = timeline.date.timeIntervalSinceReferenceDate
+                            BONDarkIntentBorderLight(
+                                phase: phase,
+                                activeProgress: 1,
+                                isPressed: false,
+                                isActive: !reduceMotion
+                            )
+                        }
+                        .allowsHitTesting(false)
+                    }
+                }
+            )
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(BONScaleButtonStyle())
@@ -963,12 +843,14 @@ private struct FirstTimerChatComposer: View {
 private struct FirstTimerHomeDashboardView: View {
     let metrics: HomeFirstTimerMetrics
     let namespace: Namespace.ID
+    var aiEntryNamespace: Namespace.ID?
+    var isActiveAITransitionSource: Bool = false
     @Binding var scrollPosition: ScrollPosition
     @Binding var scrollOffset: CGFloat
     @Binding var didApplyInitialOffset: Bool
     let initialOffset: CGFloat
     let onBudgeting: () -> Void
-    let onShowAIReport: () -> Void
+    var onTalkWithAI: () -> Void = {}
     let onOpenCredit: () -> Void
 
     var body: some View {
@@ -987,7 +869,10 @@ private struct FirstTimerHomeDashboardView: View {
                     FirstTimerDashboardPreview(
                         metrics: metrics,
                         namespace: namespace,
-                        scrollOffset: scrollOffset
+                        aiEntryNamespace: aiEntryNamespace,
+                        isActiveAITransitionSource: isActiveAITransitionSource,
+                        scrollOffset: scrollOffset,
+                        onTap: onTalkWithAI
                     )
                         .frame(width: metrics.screenWidth, height: 443)
                         .clipped()
@@ -1030,13 +915,19 @@ private struct FirstTimerHomeDashboardView: View {
                 namespace: namespace,
                 collapseProgress: collapseProgress,
                 centerOpacity: topAIModeOpacity,
-                onCenter: onShowAIReport,
+                onCenter: onTalkWithAI,
                 onLeft: {},
                 onRight: {}
             )
 
+            // The floating "Talk with AI" pill is just a visual affordance — it
+            // sits on top of the panel and routes to the same AI Chat push. The
+            // panel itself is the matched transition source for Apple's zoom,
+            // so this pill is intentionally NOT a `matchedTransitionSource`; if
+            // it were, the system would have two candidate sources with the
+            // same id and the morph would jitter.
             FirstTimerCenterPill(kind: .talkAI) {
-                onShowAIReport()
+                onTalkWithAI()
             }
                 .matchedGeometryEffect(id: "home-floating-talk-ai", in: namespace)
                 .scaleEffect(1 - (talkMoveProgress * 0.035))
@@ -1066,7 +957,10 @@ private struct FirstTimerHomeDashboardView: View {
 private struct FirstTimerDashboardPreview: View {
     let metrics: HomeFirstTimerMetrics
     let namespace: Namespace.ID
+    var aiEntryNamespace: Namespace.ID?
+    var isActiveAITransitionSource: Bool = false
     let scrollOffset: CGFloat
+    var onTap: () -> Void = {}
 
     var body: some View {
         let panelWidth = metrics.screenWidth - 16
@@ -1110,19 +1004,28 @@ private struct FirstTimerDashboardPreview: View {
             .frame(width: panelWidth, height: panelHeight)
             .matchedGeometryEffect(id: "first-timer-ai-report-surface", in: namespace)
             .clipShape(RoundedRectangle(cornerRadius: 56, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 56, style: .continuous))
+            .onTapGesture {
+                onTap()
+            }
+            // The panel — not the pill — is the matched transition source for
+            // Apple's `.navigationTransition(.zoom)`. The system reads the
+            // panel's final on-screen frame (rounded chassis, 56pt corner
+            // radius, lime glow) and morphs that geometry into the full AI
+            // Chat screen, which is the same view rendered at full bleed.
+            .modifier(
+                HomeAIEntrySourceModifier(
+                    namespace: aiEntryNamespace,
+                    sourceID: AIChatEntrySource.cta.transitionID,
+                    isActive: isActiveAITransitionSource,
+                    cornerRadius: 56
+                )
+            )
             .opacity(panelOpacity)
             .scaleEffect(panelScale, anchor: .top)
             .blur(radius: fadeProgress * 1.2)
             .offset(y: panelYOffset)
             .position(x: metrics.screenWidth / 2, y: 8 + (panelHeight / 2))
-            .background {
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: FirstTimerAIReportFrameKey.self,
-                        value: proxy.frame(in: .named("firstTimerHomeRoot"))
-                    )
-                }
-            }
         }
     }
 }
@@ -1314,171 +1217,6 @@ private struct FirstTimerBudgetingCard: View {
         }
         .buttonStyle(BONScaleButtonStyle())
         .accessibilityLabel("Do free budgeting. Start now.")
-    }
-}
-
-private struct FirstTimerAIReportMorphOverlay: View {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    let metrics: HomeFirstTimerMetrics
-    let sourceFrame: CGRect
-    let progress: CGFloat
-    let isClosing: Bool
-
-    private var easedProgress: CGFloat {
-        firstTimerSmoothStep(progress)
-    }
-
-    private var source: CGRect {
-        guard sourceFrame.width > 0, sourceFrame.height > 0 else {
-            return fallbackSource
-        }
-
-        return sourceFrame
-    }
-
-    private var fallbackSource: CGRect {
-        CGRect(
-            x: 8,
-            y: 8,
-            width: metrics.screenWidth - 16,
-            height: 435
-        )
-    }
-
-    private var surfaceRect: CGRect {
-        let p = easedProgress
-        return CGRect(
-            x: firstTimerLerp(source.minX, 0, p),
-            y: firstTimerLerp(source.minY, 0, p),
-            width: firstTimerLerp(source.width, metrics.screenWidth, p),
-            height: firstTimerLerp(source.height, metrics.screenHeight, p)
-        )
-    }
-
-    var body: some View {
-        let p = easedProgress
-        let rect = surfaceRect
-        let surfaceOpacity = firstTimerRangeProgress(p, start: 0.02, end: 0.20)
-        let backgroundWash = firstTimerRangeProgress(p, start: 0.08, end: 0.34) * 0.94
-        let contentProgress = isClosing
-            ? firstTimerRangeProgress(p, start: 0.12, end: 0.46)
-            : firstTimerRangeProgress(p, start: 0.28, end: 0.64)
-        let chromeProgress = isClosing
-            ? firstTimerRangeProgress(p, start: 0.20, end: 0.54)
-            : firstTimerRangeProgress(p, start: 0.38, end: 0.72)
-        let glowProgress = reduceTransparency ? 0 : firstTimerRangeProgress(p, start: 0.06, end: 0.44)
-
-        ZStack(alignment: .topLeading) {
-            Color.white
-                .opacity(backgroundWash)
-                .ignoresSafeArea()
-
-            RoundedRectangle(cornerRadius: 56, style: .continuous)
-                .fill(Color.white.opacity(surfaceOpacity))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 56, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    BONColor.lime50.opacity(0.44 * glowProgress),
-                                    BONColor.lime100.opacity(0.74 * glowProgress),
-                                    BONColor.lime200.opacity(0.70 * glowProgress),
-                                    BONColor.lime300.opacity(0.42 * glowProgress)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 7
-                        )
-                        .blur(radius: 10)
-                        .padding(-2)
-                }
-                .shadow(color: BONColor.lime100.opacity(0.18 * glowProgress), radius: 22, x: 0, y: 0)
-                .frame(width: rect.width, height: rect.height)
-                .position(x: rect.midX, y: rect.midY)
-
-            FirstTimerAIReportMorphContent(
-                metrics: metrics,
-                contentProgress: contentProgress,
-                chromeProgress: chromeProgress
-            )
-            .frame(width: metrics.screenWidth, height: metrics.screenHeight)
-            .opacity(contentProgress)
-            .scaleEffect(firstTimerLerp(0.985, 1, p), anchor: .top)
-            .mask {
-                RoundedRectangle(cornerRadius: 56, style: .continuous)
-                    .frame(width: rect.width, height: rect.height)
-                    .position(x: rect.midX, y: rect.midY)
-            }
-        }
-        .frame(width: metrics.screenWidth, height: metrics.screenHeight)
-        .clipShape(Rectangle())
-    }
-}
-
-private struct FirstTimerAIReportMorphContent: View {
-    let metrics: HomeFirstTimerMetrics
-    let contentProgress: CGFloat
-    let chromeProgress: CGFloat
-
-    var body: some View {
-        let reportWidth = metrics.reportContentWidth
-
-        ZStack(alignment: .top) {
-            Color.white
-
-            VStack(spacing: 0) {
-                Color.clear
-                    .frame(height: metrics.safeTop + 109)
-
-                Text("Hi Marcus, I reviewed your credit\nreport here’s what I found")
-                    .font(BONTypography.zalando(size: 16, weight: .regular))
-                    .foregroundStyle(BONColor.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(3)
-                    .frame(width: reportWidth, height: 44)
-                    .opacity(contentProgress)
-                    .offset(y: (1 - contentProgress) * 5)
-
-                HStack(spacing: 12) {
-                    FirstTimerCreditScoreCard(width: (reportWidth - 12) / 2)
-                    FirstTimerLiabilitiesCard(width: (reportWidth - 12) / 2)
-                }
-                .frame(width: reportWidth)
-                .opacity(contentProgress)
-                .offset(y: (1 - contentProgress) * 7)
-                .padding(.top, 22)
-
-                FirstTimerOpenCardsPanel(width: reportWidth)
-                    .opacity(contentProgress)
-                    .offset(y: (1 - contentProgress) * 9)
-                    .padding(.top, 12)
-
-                Spacer(minLength: 0)
-            }
-            .frame(width: metrics.screenWidth)
-
-            AIChatTopScrim()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .ignoresSafeArea(.container, edges: .top)
-                .allowsHitTesting(false)
-                .opacity(chromeProgress)
-
-            ZStack {
-                FirstTimerTopIcon(side: .menu, action: {})
-                    .position(x: metrics.horizontalMargin + 20, y: metrics.topControlCenterY)
-
-                FirstTimerCenterPill(kind: .linkCards, action: {})
-                    .position(x: metrics.screenWidth / 2, y: metrics.topControlCenterY)
-
-                FirstTimerTopIcon(side: .home, action: {})
-                    .position(x: metrics.screenWidth - metrics.horizontalMargin - 20, y: metrics.topControlCenterY)
-            }
-            .frame(width: metrics.screenWidth, height: metrics.safeTop + 82)
-            .opacity(chromeProgress)
-            .offset(y: -(1 - chromeProgress) * 4)
-        }
     }
 }
 
@@ -2210,20 +1948,20 @@ private struct FirstTimerPrimaryButton: View {
 
 // MARK: - Shared Chrome
 
-private enum FirstTimerTopCenter {
+enum FirstTimerTopCenter {
     case linkCards
     case aiMode
     case talkAI
 }
 
-private enum FirstTimerTopSide {
+enum FirstTimerTopSide {
     case menu
     case profile
     case bell
     case home
 }
 
-private struct FirstTimerTopChrome: View {
+struct FirstTimerTopChrome: View {
     let metrics: HomeFirstTimerMetrics
     let center: FirstTimerTopCenter
     let left: FirstTimerTopSide
@@ -2269,7 +2007,7 @@ private struct FirstTimerTopChrome: View {
     }
 }
 
-private struct FirstTimerCenterPill: View {
+struct FirstTimerCenterPill: View {
     let kind: FirstTimerTopCenter
     let action: () -> Void
 
@@ -2322,13 +2060,13 @@ private struct FirstTimerCenterPill: View {
     }
 }
 
-private struct FirstTimerDarkGlassCapsule: View {
+struct FirstTimerDarkGlassCapsule: View {
     var body: some View {
         BONChatExpertPillSurface()
     }
 }
 
-private struct FirstTimerTopIcon: View {
+struct FirstTimerTopIcon: View {
     let side: FirstTimerTopSide
     let action: () -> Void
 
@@ -2375,7 +2113,7 @@ private struct FirstTimerTopIcon: View {
     }
 }
 
-private struct FirstTimerGlassIconButton: View {
+struct FirstTimerGlassIconButton: View {
     var image: String?
     var symbol: String?
     let accessibilityLabel: String
@@ -2411,7 +2149,7 @@ private struct FirstTimerGlassIconButton: View {
     }
 }
 
-private struct FirstTimerDashedDivider: View {
+struct FirstTimerDashedDivider: View {
     var body: some View {
         GeometryReader { proxy in
             Path { path in
@@ -2430,10 +2168,19 @@ private struct HomeAIEntrySourceModifier: ViewModifier {
     let namespace: Namespace.ID?
     let sourceID: String?
     let isActive: Bool
+    /// Continuous-corner radius for the matched source's clip shape. Apple
+    /// restricts the `matchedTransitionSource(id:in:configuration:)`
+    /// configuration to `RoundedRectangle`, and SwiftUI clamps an oversized
+    /// radius to `min(width, height) / 2`. Pass 56pt for the AI Chat panel,
+    /// or a very large value (e.g. 999) when the source should render as a
+    /// capsule pill.
+    var cornerRadius: CGFloat = 0
 
     func body(content: Content) -> some View {
         if let namespace, let sourceID, isActive {
-            content.matchedTransitionSource(id: sourceID, in: namespace)
+            content.matchedTransitionSource(id: sourceID, in: namespace) { source in
+                source.clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            }
         } else {
             content
         }
