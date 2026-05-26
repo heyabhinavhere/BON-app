@@ -16,11 +16,19 @@ enum BONMotion {
     static let thinkingPulse = Animation.easeInOut(duration: 0.72).repeatForever(autoreverses: true)
     static let reducedMotionFallback = Animation.easeOut(duration: 0.12)
 
+    /// Apple-style content settle that runs *after* a `.navigationTransition(.zoom)`
+    /// lands. Use this to gently slide intro content into place — never on the root
+    /// destination view (that would fight the system morph).
+    static let postZoomSettle = Animation.spring(response: 0.46, dampingFraction: 0.92)
+
+    /// Slightly slower companion settle for secondary content (suggestions, body
+    /// paragraphs) so the screen resolves with a subtle staircase.
+    static let postZoomSettleSlow = Animation.spring(response: 0.58, dampingFraction: 0.94)
+
     static let fastTiming = BONMotionTiming(duration: 0.16)
     static let standardTiming = BONMotionTiming(duration: 0.24)
     static let emphasisTiming = BONMotionTiming(duration: 0.42)
 
-    // Compatibility aliases for the current scaffold.
     static let settle = reveal
     static let fade = Animation.easeInOut(duration: 0.2)
 }

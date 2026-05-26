@@ -18,6 +18,19 @@ final class AppRouter: ObservableObject {
             default:
                 path = []
             }
+        } else if let index = arguments.firstIndex(of: "-BONHomeFirstTimerState"),
+                  arguments.indices.contains(index + 1) {
+            // The legacy QA / first-launch flag `-BONHomeFirstTimerState ai|
+            // ai-landing|report` used to render the AI Chat inline in the home
+            // view via a private `surface = .aiLanding` state. The chat is now
+            // a real NavigationStack destination, so we translate those values
+            // into a push of `.aiChat` at startup.
+            switch arguments[index + 1].lowercased() {
+            case "ai", "ai-landing", "report":
+                path = [.aiChat]
+            default:
+                path = []
+            }
         } else {
             path = []
         }
