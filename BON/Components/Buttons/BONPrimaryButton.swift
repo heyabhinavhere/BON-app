@@ -460,7 +460,7 @@ private struct BONDarkIntentGradientWave: View {
 // the AI Chat screen) can opt into the same orbit-bead treatment without
 // duplicating the recipe.
 
-private struct BONDarkIntentBorderLight: View {
+struct BONDarkIntentBorderLight: View {
     let phase: TimeInterval
     let activeProgress: CGFloat
     let isPressed: Bool
