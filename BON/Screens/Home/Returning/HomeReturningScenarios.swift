@@ -908,7 +908,8 @@ private struct StatementBarChart: View {
             // Chart area
             GeometryReader { proxy in
                 let chartHeight: CGFloat = 130
-                let columnWidth = (proxy.size.width - CGFloat(bars.count - 1) * 16) / CGFloat(bars.count)
+                let barCount = max(1, bars.count)
+                let columnWidth = max(0, (proxy.size.width - CGFloat(barCount - 1) * 16) / CGFloat(barCount))
                 let barWidth: CGFloat = min(28, columnWidth)
 
                 ZStack(alignment: .topLeading) {

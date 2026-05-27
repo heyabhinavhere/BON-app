@@ -8,13 +8,16 @@ struct CreditView: View {
 
     let onHome: () -> Void
     let onOpenAI: () -> Void
+    let onOpenSpend: () -> Void
 
     init(
         onHome: @escaping () -> Void = {},
-        onOpenAI: @escaping () -> Void = {}
+        onOpenAI: @escaping () -> Void = {},
+        onOpenSpend: @escaping () -> Void = {}
     ) {
         self.onHome = onHome
         self.onOpenAI = onOpenAI
+        self.onOpenSpend = onOpenSpend
         _selectedLiability = State(initialValue: CreditLaunch.initialLiability)
         _showsOfferDetails = State(initialValue: CreditLaunch.initialSheet == "offer-details")
         _showsAccountPicker = State(initialValue: CreditLaunch.initialSheet == "account-picker")
@@ -29,6 +32,7 @@ struct CreditView: View {
                     metrics: metrics,
                     onHome: onHome,
                     onOpenAI: onOpenAI,
+                    onOpenSpend: onOpenSpend,
                     onShowOfferDetails: { showsOfferDetails = true },
                     onSelectLiability: { liability in
                         withAnimation(screenAnimation) {
@@ -161,6 +165,7 @@ private struct CreditMainScreen: View {
     let metrics: CreditMetrics
     let onHome: () -> Void
     let onOpenAI: () -> Void
+    let onOpenSpend: () -> Void
     let onShowOfferDetails: () -> Void
     let onSelectLiability: (CreditLiabilityKind) -> Void
 
@@ -245,6 +250,8 @@ private struct CreditMainScreen: View {
             ) { item in
                 if item.id == "home" {
                     onHome()
+                } else if item.id == "spend" {
+                    onOpenSpend()
                 }
             }
             .position(
@@ -391,24 +398,13 @@ private struct CreditLiabilitiesSummaryCard: View {
         .background {
             let rect = RoundedRectangle(cornerRadius: 16, style: .continuous)
             ZStack {
-                if #available(iOS 26.0, *), !reduceTransparency {
-                    rect
-                        .fill(Color.white.opacity(0.30))
-                        .glassEffect(.regular.tint(Color.white.opacity(0.32)), in: rect)
-                } else if reduceTransparency {
-                    rect.fill(Color.white.opacity(0.92))
-                } else {
-                    rect
-                        .fill(Color.white.opacity(0.42))
-                        .background(.ultraThinMaterial, in: rect)
-                }
+                rect.fill(Color.white.opacity(0.86))
 
                 rect
-                    .strokeBorder(Color.white.opacity(0.42), lineWidth: 0.6)
-                    .blendMode(.screen)
+                    .strokeBorder(Color.white.opacity(0.62), lineWidth: 0.6)
             }
         }
-        .shadow(color: CreditPalette.cardShadow, radius: 32, x: 0, y: 8)
+        .shadow(color: CreditPalette.cardShadow, radius: 24, x: 0, y: 6)
     }
 
     @ViewBuilder

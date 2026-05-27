@@ -51,6 +51,13 @@ final class AppRouter: ObservableObject {
         }
     }
 
+    func openSpend() {
+        usesAIChatLaunchArguments = false
+        DispatchQueue.main.async { [weak self] in
+            self?.path.append(.spend)
+        }
+    }
+
     func reset() {
         usesAIChatLaunchArguments = false
         path.removeAll()

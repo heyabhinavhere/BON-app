@@ -16,6 +16,7 @@ struct HomeFirstTimerClickedView: View {
     var activeAIEntrySource: AIChatEntrySource = .cta
     var onOpenAI: (AIChatEntrySource) -> Void = { _ in }
     var onOpenCredit: () -> Void = {}
+    var onOpenSpend: () -> Void = {}
 
     var body: some View {
         GeometryReader { proxy in
@@ -41,7 +42,8 @@ struct HomeFirstTimerClickedView: View {
                         onTalkWithAI: {
                             onOpenAI(.cta)
                         },
-                        onOpenCredit: onOpenCredit
+                        onOpenCredit: onOpenCredit,
+                        onOpenSpend: onOpenSpend
                     )
                     .opacity(1)
                     .allowsHitTesting(surface == .home && budgetingTransition == nil)
@@ -331,6 +333,7 @@ struct FirstTimerAIReportView: View {
     /// home-indicator inset; defaults to `0` for previews/embedding contexts
     /// that don't paint a fixed composer.
     var scrollBottomReserved: CGFloat = 0
+    var chatMessages: [AIChatMessage] = []
     let onHome: () -> Void
     let onAskAI: () -> Void
 
@@ -376,14 +379,39 @@ struct FirstTimerAIReportView: View {
                     .frame(width: reportWidth, alignment: .trailing)
                     .padding(.top, 23)
 
+                    if !chatMessages.isEmpty {
+                        VStack(spacing: 12) {
+                            ForEach(chatMessages) { message in
+                                AIChatMessageBubble(
+                                    message: message,
+                                    textMaxWidth: reportWidth * 0.82,
+                                    chartWidth: reportWidth
+                                )
+                                .id(message.id)
+                            }
+                        }
+                        .frame(width: reportWidth, alignment: .leading)
+                        .padding(.top, 28)
+                    }
+
                     // Trailing breathing room reserves enough space for the
                     // host-rendered fixed composer (passed in via
                     // `scrollBottomReserved`), plus an extra 28pt of visual
                     // breathing room above it.
                     Color.clear
                         .frame(height: 28 + scrollBottomReserved)
+                        .id("chat-bottom-anchor")
                 }
                 .frame(width: metrics.screenWidth)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: chatMessages.count) { _, _ in
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 80_000_000)
+                    withAnimation(.easeOut(duration: 0.28)) {
+                        scrollPosition.scrollTo(edge: .bottom)
+                    }
+                }
             }
             .contentMargins(.horizontal, 0, for: .scrollContent)
             .scrollPosition($scrollPosition)
@@ -775,67 +803,104 @@ struct FirstTimerChatComposer: View {
 
     let width: CGFloat
     let placeholder: String
-    let action: () -> Void
+    @Binding var text: String
+    var isFocused: FocusState<Bool>.Binding
+    var onSend: () -> Void = {}
+
+    private var hasText: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
-        Button {
-            Task { @MainActor in
-                BONHaptics.selection()
-                action()
-            }
-        } label: {
-            HStack(spacing: 0) {
-                Text(placeholder)
-                    .font(BONTypography.zalando(size: 14, weight: .regular))
-                    .foregroundStyle(BONColor.textOnDark.opacity(0.58))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 24)
+        HStack(spacing: 0) {
+            TextField(
+                "",
+                text: $text,
+                prompt: Text(placeholder)
+                    .foregroundColor(BONColor.textOnDark.opacity(0.58))
+            )
+            .focused(isFocused)
+            .font(BONTypography.zalando(size: 14, weight: .regular))
+            .foregroundStyle(BONColor.textOnDark)
+            .tint(BONColor.lime300)
+            .submitLabel(.send)
+            .onSubmit(send)
+            .textInputAutocapitalization(.sentences)
+            .autocorrectionDisabled(false)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 24)
 
+            Button(action: hasText ? send : focusField) {
                 ZStack {
                     BONChatComposerActionSurface()
 
-                    Image("chatVoice")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundStyle(BONColor.textOnDark)
-                        .frame(width: 16, height: 16)
+                    if hasText {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(BONColor.textOnDark)
+                    } else {
+                        Image("chatVoice")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundStyle(BONColor.textOnDark)
+                            .frame(width: 16, height: 16)
+                    }
                 }
                 .frame(width: 72, height: 52)
                 .padding(.trailing, 6)
             }
-            .frame(width: width, height: 64)
-            .background(
-                // Same dark-glass chassis as before, with the lime orbit-bead
-                // border light from the dark CTA layered on top. The
-                // `TimelineView(.animation)` drives a continuously updating
-                // `phase`, which `BONDarkIntentBorderLight` turns into a
-                // rotating angular gradient — a single bright lime/white
-                // bead sweeping along the capsule edge with halo + bloom.
-                // Pauses entirely under Reduce Motion / Reduce Transparency.
-                ZStack {
-                    BONChatGlassCapsule()
-
-                    if !reduceTransparency {
-                        TimelineView(.animation(paused: reduceMotion)) { timeline in
-                            let phase = timeline.date.timeIntervalSinceReferenceDate
-                            BONDarkIntentBorderLight(
-                                phase: phase,
-                                activeProgress: 1,
-                                isPressed: false,
-                                isActive: !reduceMotion
-                            )
-                        }
-                        .allowsHitTesting(false)
-                    }
-                }
-            )
-            .contentShape(Capsule(style: .continuous))
+            .buttonStyle(BONScaleButtonStyle())
+            .accessibilityLabel(hasText ? "Send message" : "Voice input")
         }
-        .buttonStyle(BONScaleButtonStyle())
-        .accessibilityLabel(placeholder)
+        .frame(width: width, height: 64)
+        .background(
+            ZStack {
+                BONChatGlassCapsule()
+
+                if !reduceTransparency && !isFocused.wrappedValue {
+                    TimelineView(.animation(paused: reduceMotion)) { timeline in
+                        let phase = timeline.date.timeIntervalSinceReferenceDate
+                        BONDarkIntentBorderLight(
+                            phase: phase,
+                            activeProgress: 1,
+                            isPressed: false,
+                            isActive: !reduceMotion
+                        )
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+        )
+        .contentShape(Capsule(style: .continuous))
+        .onTapGesture(perform: focusField)
     }
+
+    private func focusField() {
+        isFocused.wrappedValue = true
+    }
+
+    private func send() {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        Task { @MainActor in
+            BONHaptics.impact(.light)
+            onSend()
+        }
+    }
+}
+
+struct AIChatMessage: Identifiable, Equatable {
+    enum Role { case user, ai }
+    enum Attachment: Equatable {
+        case monthlySpending
+        case budget
+        case categorySpending
+    }
+    let id = UUID()
+    let role: Role
+    let text: String
+    var attachment: Attachment? = nil
 }
 
 // MARK: - Home Dashboard
@@ -852,6 +917,7 @@ private struct FirstTimerHomeDashboardView: View {
     let onBudgeting: () -> Void
     var onTalkWithAI: () -> Void = {}
     let onOpenCredit: () -> Void
+    let onOpenSpend: () -> Void
 
     var body: some View {
         let collapseProgress = min(1, max(0, (scrollOffset - 80) / 140))
@@ -943,6 +1009,8 @@ private struct FirstTimerHomeDashboardView: View {
             ) { item in
                 if item.id == "credit" {
                     onOpenCredit()
+                } else if item.id == "spend" {
+                    onOpenSpend()
                 }
             }
             .position(
@@ -1441,7 +1509,7 @@ private struct FirstTimerSecurityCard: View {
 
                 Spacer(minLength: 0)
             }
-            .frame(width: width - 16, height: 112)
+            .frame(width: max(0, width - 16), height: 112)
             .background(
                 LinearGradient(
                     colors: [
@@ -2184,6 +2252,73 @@ private struct HomeAIEntrySourceModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+struct AIChatMessageBubble: View {
+    let message: AIChatMessage
+    let textMaxWidth: CGFloat
+    let chartWidth: CGFloat
+
+    var body: some View {
+        VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 12) {
+            if !message.text.isEmpty {
+                HStack {
+                    if message.role == .user { Spacer(minLength: 24) }
+
+                    Text(message.text)
+                        .font(BONTypography.zalando(size: 14, weight: .regular))
+                        .foregroundStyle(BONColor.textPrimary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: message.role == .user ? 18 : 4,
+                                bottomLeadingRadius: 18,
+                                bottomTrailingRadius: 18,
+                                topTrailingRadius: message.role == .user ? 4 : 18,
+                                style: .continuous
+                            )
+                            .fill(
+                                message.role == .user
+                                    ? BONColor.lime100
+                                    : Color(red: 0.96, green: 0.96, blue: 0.96)
+                            )
+                        )
+                        .frame(maxWidth: textMaxWidth, alignment: message.role == .user ? .trailing : .leading)
+
+                    if message.role == .ai { Spacer(minLength: 24) }
+                }
+            }
+
+            if let attachment = message.attachment {
+                AIChatChartCard(attachment: attachment, width: chartWidth)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+struct AIChatChartCard: View {
+    let attachment: AIChatMessage.Attachment
+    let width: CGFloat
+
+    private var assetName: String {
+        switch attachment {
+        case .monthlySpending: return "aiChartMonthlySpending"
+        case .budget: return "aiChartBudget"
+        case .categorySpending: return "aiChartCategorySpending"
+        }
+    }
+
+    var body: some View {
+        Image(assetName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: width)
+            .shadow(color: Color.black.opacity(0.12), radius: 32, x: 0, y: 8)
     }
 }
 

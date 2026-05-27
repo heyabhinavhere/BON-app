@@ -10,6 +10,10 @@ struct AIChatView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.dismiss) private var dismiss
     @Namespace private var localNamespace
+    @FocusState private var isComposerFocused: Bool
+
+    @State private var inputText: String = ""
+    @State private var messages: [AIChatMessage] = []
 
     private let entryNamespace: Namespace.ID?
     private let sourceID: String
@@ -53,7 +57,7 @@ struct AIChatView: View {
                 // chassis, so this glow is visible along the screen edges
                 // wherever no card is covering it — same layering as the
                 // legacy AIChatView, just with the new cards-based content.
-                BONSiriEdgeGlow(isActive: !reduceTransparency)
+                BONSiriEdgeGlow(isActive: !reduceTransparency && !isComposerFocused)
                     .opacity(reduceTransparency ? 0 : 0.88)
                     .ignoresSafeArea()
 
@@ -63,8 +67,14 @@ struct AIChatView: View {
                     aiEntryNamespace: nil,
                     isActiveAITransitionSource: false,
                     scrollBottomReserved: composerReservedSpace,
+                    chatMessages: messages,
                     onHome: { dismiss() },
                     onAskAI: {}
+                )
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        if isComposerFocused { isComposerFocused = false }
+                    }
                 )
 
                 // Fixed bottom composer overlaid on the chat surface. We pin
@@ -100,7 +110,9 @@ struct AIChatView: View {
                         FirstTimerChatComposer(
                             width: metrics.reportContentWidth,
                             placeholder: "Ask BON Credit...",
-                            action: {}
+                            text: $inputText,
+                            isFocused: $isComposerFocused,
+                            onSend: handleSend
                         )
                         .padding(.bottom, composerBottomPadding)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -113,8 +125,68 @@ struct AIChatView: View {
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .ignoresSafeArea()
+        .ignoresSafeArea(.container)
         .modifier(AIChatZoomTransitionModifier(entryNamespace: entryNamespace, sourceID: sourceID))
+    }
+
+    private func handleSend() {
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let userMessage = AIChatMessage(role: .user, text: trimmed)
+        messages.append(userMessage)
+        inputText = ""
+
+        let reply = AIChatView.mockReply(for: trimmed)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            messages.append(AIChatMessage(role: .ai, text: reply.text, attachment: reply.attachment))
+        }
+    }
+
+    private static func mockReply(for prompt: String) -> (text: String, attachment: AIChatMessage.Attachment?) {
+        let lower = prompt.lowercased()
+
+        if lower.contains("category") || lower.contains("by category") {
+            return (
+                "Here's your spending broken down by category for May.",
+                .categorySpending
+            )
+        }
+        if lower.contains("budget") {
+            return (
+                "Here's how your budget is tracking for this month.",
+                .budget
+            )
+        }
+        if lower.contains("monthly") || lower.contains("spending") || lower.contains("spend") {
+            return (
+                "Here's your monthly spending overview.",
+                .monthlySpending
+            )
+        }
+        if lower.contains("loan") || lower.contains("debt") {
+            return (
+                "Your total outstanding is $41,860 across 5 accounts. Your highest-APR debt is the Amex card at 27.4%. Want me to draft a payoff plan?",
+                nil
+            )
+        }
+        if lower.contains("score") || lower.contains("credit") {
+            return (
+                "Your score is 712 — up 38 points this month. Paying down your Amex Blue Cash by $400 would lift it another ~12 points within 30 days.",
+                nil
+            )
+        }
+        if lower.contains("hi") || lower.contains("hello") {
+            return (
+                "Hey Marcus — I've got your report ready above. Try: \"Show me my monthly spending\", \"How's my budget for this month\", or \"Show me spending by category\".",
+                nil
+            )
+        }
+        return (
+            "Got it. Try: \"Show me my monthly spending\", \"How's my budget for this month\", or \"Show me spending by category\" — I'll pull up the chart.",
+            nil
+        )
     }
 }
 

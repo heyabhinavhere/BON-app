@@ -29,6 +29,9 @@ struct RootView: View {
                 },
                 onOpenCredit: {
                     router.openCredit()
+                },
+                onOpenSpend: {
+                    router.openSpend()
                 }
             )
             .navigationDestination(for: AppRoute.self) { route in
@@ -49,8 +52,13 @@ struct RootView: View {
                         },
                         onOpenAI: {
                             router.openAIChat(source: .cta)
+                        },
+                        onOpenSpend: {
+                            router.openSpend()
                         }
                     )
+                case .spend:
+                    SpendView()
                 }
             }
             .toolbar(.hidden, for: .navigationBar)

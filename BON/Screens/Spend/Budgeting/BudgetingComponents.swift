@@ -155,7 +155,7 @@ struct BudgetingBarChartCard: View {
                     barCell(at: index)
                 }
             }
-            .frame(width: width - 24)
+            .frame(width: max(0, width - 24))
         }
         .padding(.horizontal, BONSpacing.sm)
         .padding(.vertical, BONSpacing.xs)
